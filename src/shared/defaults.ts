@@ -11,6 +11,15 @@ export const DEFAULT_SETTINGS: ScreeningSettings = {
   minimumCompanyScore: 55,
   maxDailyMessages: 12,
   sendIntervalSeconds: 30,
+  maxScanPages: 5,
+  aiEnabled: false,
+  aiEndpoint: 'https://api.deepseek.com/v1',
+  aiApiKey: '',
+  aiModel: 'deepseek-chat',
+  companyResearchEnabled: false,
+  tavilyApiKey: '',
+  companyTrustThreshold: 70,
+  replyNotificationsEnabled: true,
 };
 
 export function createDefaultState(): AppState {

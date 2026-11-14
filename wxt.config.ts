@@ -6,9 +6,9 @@ export default defineConfig({
   manifest: {
     name: 'Boss 岗位助手',
     short_name: 'Boss 岗位助手',
-    description: '基于简历匹配、城市过滤和公司信号检测的 Boss 直聘求职助手。',
-    version: '0.1.0',
-    permissions: ['storage', 'sidePanel', 'activeTab', 'tabs'],
+    description: '基于简历匹配、城市过滤、AI 复核和公司全网核验的 Boss 直聘求职助手。',
+    version: '0.2.0',
+    permissions: ['storage', 'sidePanel', 'activeTab', 'tabs', 'alarms', 'notifications'],
     host_permissions: ['https://www.zhipin.com/*'],
     icons: {
       16: 'icon/16.png',

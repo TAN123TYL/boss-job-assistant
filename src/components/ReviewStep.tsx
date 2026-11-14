@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import {
+  Bot,
   Check,
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Globe2,
   ShieldAlert,
   SkipForward,
   Sparkles,
@@ -73,6 +75,19 @@ function JobReviewItem({ job, onApprove, onSkip }: JobReviewItemProps) {
         {job.matchResult.matchedKeywords.length === 0 ? <span>标题方向相近</span> : null}
       </div>
 
+      {job.aiReview ? (
+        <div className="ai-review-callout">
+          <Bot aria-hidden="true" size={16} />
+          <div>
+            <strong>AI 复核 {job.aiReview.score} 分</strong>
+            <p>{job.aiReview.summary || 'AI 已完成岗位匹配复核'}</p>
+            {job.aiReview.concerns.length > 0 ? (
+              <small>{job.aiReview.concerns.slice(0, 3).join('；')}</small>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {expanded ? (
         <div className="review-details">
           <div className="detail-group">
@@ -95,6 +110,16 @@ function JobReviewItem({ job, onApprove, onSkip }: JobReviewItemProps) {
           ) : null}
           <div className="detail-group">
             <h3>公司信号</h3>
+            <div className="trust-line">
+              <Globe2 aria-hidden="true" size={14} />
+              <span>
+                {job.companyAssessment.source === 'ai_web_verified'
+                  ? `全网核验：${job.companyAssessment.trustDecision}`
+                  : '页面信号评估'}
+              </span>
+              <strong>{job.companyAssessment.score} 分</strong>
+            </div>
+            {job.companyAssessment.aiSummary ? <p>{job.companyAssessment.aiSummary}</p> : null}
             <p>{job.companyAssessment.positives.join('；') || '页面信息不足'}</p>
             {job.companyAssessment.risks.length > 0 ? (
               <div className="risk-callout">
@@ -103,6 +128,12 @@ function JobReviewItem({ job, onApprove, onSkip }: JobReviewItemProps) {
               </div>
             ) : null}
             <div className="text-links">
+              {job.companyAssessment.aiEvidence.map((source) => (
+                <a key={source.url} href={source.url} target="_blank" rel="noreferrer">
+                  {source.title || '核验来源'}
+                  <ExternalLink aria-hidden="true" size={13} />
+                </a>
+              ))}
               {job.companyAssessment.externalLinks.map((link) => (
                 <a key={link.label} href={link.url} target="_blank" rel="noreferrer">
                   {link.label}

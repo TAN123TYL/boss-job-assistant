@@ -1,9 +1,9 @@
 {
   "name": "boss-job-assistant",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "A human-in-the-loop Chrome extension for screening BOSS Zhipin jobs against a resume.",
+  "description": "Human-in-the-loop BOSS Zhipin job screening with AI review, company research, and verified sending.",
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
@@ -23,6 +23,8 @@
   "license": "MIT",
   "dependencies": {
     "lucide-react": "^1.73.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

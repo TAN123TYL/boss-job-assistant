@@ -16,6 +16,7 @@ function createJob(overrides: Partial<JobRecord> = {}): JobRecord {
     companySize: '100-499人',
     financing: 'B轮',
     recruiter: '',
+    companyPageText: '',
     stage: 'ready_for_review',
     finalScore: 80,
     matchResult: {
@@ -36,16 +37,24 @@ function createJob(overrides: Partial<JobRecord> = {}): JobRecord {
       score: 70,
       grade: 'B',
       passed: true,
+      source: 'page_signals',
+      trustDecision: 'trusted',
+      aiSummary: '',
+      aiEvidence: [],
+      researchedAt: null,
       positives: [],
       risks: [],
       recommendedChecks: [],
       externalLinks: [],
     },
+    aiReview: null,
     greetingOptions: [],
     recommendedGreetingId: 'match',
     selectedGreeting: '您好，想进一步沟通岗位。',
     approvalStatus: 'approved',
     executionStatus: 'idle',
+    queueError: '',
+    lastAttemptAt: null,
     rejectionReasons: [],
     discoveredAt: '2026-11-14T00:00:00.000Z',
     updatedAt: '2026-11-14T00:00:00.000Z',
@@ -72,6 +81,8 @@ describe('approval gate', () => {
 
   it('does not queue jobs already sent or empty greetings', () => {
     expect(approvedQueue([createJob({ executionStatus: 'sent' })])).toHaveLength(0);
+    expect(approvedQueue([createJob({ executionStatus: 'manual_required' })])).toHaveLength(0);
+    expect(approvedQueue([createJob({ executionStatus: 'failed' })])).toHaveLength(0);
     expect(approvedQueue([createJob({ selectedGreeting: '  ' })])).toHaveLength(0);
   });
 });

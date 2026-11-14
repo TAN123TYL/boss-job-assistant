@@ -1,10 +1,17 @@
-export const APP_SCHEMA_VERSION = 1;
+export const APP_SCHEMA_VERSION = 2;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'skipped';
-export type ExecutionStatus = 'idle' | 'queued' | 'sent' | 'failed' | 'blocked' | 'manual_required';
+export type ExecutionStatus =
+  'idle' | 'queued' | 'sending' | 'sent' | 'failed' | 'blocked' | 'manual_required';
 export type JobStage =
-  'discovered' | 'resume_rejected' | 'city_rejected' | 'company_rejected' | 'ready_for_review';
+  | 'discovered'
+  | 'resume_rejected'
+  | 'city_rejected'
+  | 'company_rejected'
+  | 'ai_rejected'
+  | 'ready_for_review';
 export type ReliabilityGrade = 'A' | 'B' | 'C' | 'D';
+export type CompanyTrustDecision = 'trusted' | 'review' | 'risky' | 'unverified';
 
 export interface ScreeningSettings {
   resumeText: string;
@@ -16,6 +23,15 @@ export interface ScreeningSettings {
   minimumCompanyScore: number;
   maxDailyMessages: number;
   sendIntervalSeconds: number;
+  maxScanPages: number;
+  aiEnabled: boolean;
+  aiEndpoint: string;
+  aiApiKey: string;
+  aiModel: string;
+  companyResearchEnabled: boolean;
+  tavilyApiKey: string;
+  companyTrustThreshold: number;
+  replyNotificationsEnabled: boolean;
 }
 
 export interface CandidateProfile {
@@ -39,6 +55,7 @@ export interface BossJobDraft {
   companySize: string;
   financing: string;
   recruiter: string;
+  companyPageText?: string;
   source: 'list' | 'detail';
 }
 
@@ -58,10 +75,21 @@ export interface CityFilterResult {
   reason: string;
 }
 
+export interface CompanyEvidence {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 export interface CompanyAssessment {
   score: number;
   grade: ReliabilityGrade;
   passed: boolean;
+  source: 'page_signals' | 'ai_web_verified';
+  trustDecision: CompanyTrustDecision;
+  aiSummary: string;
+  aiEvidence: CompanyEvidence[];
+  researchedAt: string | null;
   positives: string[];
   risks: string[];
   recommendedChecks: string[];
@@ -77,6 +105,16 @@ export interface GreetingOption {
   text: string;
 }
 
+export interface AiJobReview {
+  score: number;
+  decision: 'pass' | 'reject';
+  summary: string;
+  evidence: string[];
+  concerns: string[];
+  greetingOptions: GreetingOption[];
+  reviewedAt: string;
+}
+
 export interface JobRecord {
   id: string;
   fingerprint: string;
@@ -90,16 +128,20 @@ export interface JobRecord {
   companySize: string;
   financing: string;
   recruiter: string;
+  companyPageText: string;
   stage: JobStage;
   finalScore: number;
   matchResult: ResumeMatchResult;
   cityResult: CityFilterResult;
   companyAssessment: CompanyAssessment;
+  aiReview: AiJobReview | null;
   greetingOptions: GreetingOption[];
   recommendedGreetingId: GreetingOption['id'];
   selectedGreeting: string;
   approvalStatus: ApprovalStatus;
   executionStatus: ExecutionStatus;
+  queueError: string;
+  lastAttemptAt: string | null;
   rejectionReasons: string[];
   discoveredAt: string;
   updatedAt: string;
@@ -135,11 +177,28 @@ export interface BossPageStatus {
 export interface BossScanPayload {
   drafts: BossJobDraft[];
   page: BossPageStatus;
+  pagesScanned: number;
+  duplicatesSkipped: number;
+  stoppedReason: string;
 }
 
 export interface BossSendResult {
   status: 'sent' | 'blocked' | 'manual_required' | 'not_found';
   message: string;
+}
+
+export interface BossReplySignal {
+  unreadCount: number;
+  snippets: string[];
+  messageUrl: string;
+}
+
+export interface AppBackup {
+  format: 'boss-job-assistant-backup';
+  backupVersion: number;
+  exportedAt: string;
+  secretsIncluded: false;
+  state: AppState;
 }
 
 export type ContentRequest =
@@ -148,6 +207,7 @@ export type ContentRequest =
     }
   | {
       type: 'BOSS_SCAN_JOBS';
+      maxPages: number;
     }
   | {
       type: 'BOSS_OPEN_JOB';
@@ -157,6 +217,9 @@ export type ContentRequest =
       type: 'BOSS_SEND_GREETING';
       url: string;
       text: string;
+    }
+  | {
+      type: 'BOSS_CHECK_REPLIES';
     };
 
 export type ContentResponse =
@@ -171,6 +234,10 @@ export type ContentResponse =
   | {
       ok: true;
       result: BossSendResult;
+    }
+  | {
+      ok: true;
+      replies: BossReplySignal;
     }
   | {
       ok: false;

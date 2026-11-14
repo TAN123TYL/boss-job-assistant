@@ -1,16 +1,26 @@
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import type { ContentRequest, ContentResponse } from '../../shared/types';
-import { getPageStatus, openJob, scanCurrentPage, sendGreeting } from './adapter';
+import {
+  getPageStatus,
+  openJob,
+  scanJobsAcrossPages,
+  scanReplySignals,
+  sendGreeting,
+} from './adapter';
 
 function isContentRequest(value: unknown): value is ContentRequest {
   if (!value || typeof value !== 'object' || !('type' in value)) {
     return false;
   }
 
-  return ['BOSS_PAGE_STATUS', 'BOSS_SCAN_JOBS', 'BOSS_OPEN_JOB', 'BOSS_SEND_GREETING'].includes(
-    String(value.type),
-  );
+  return [
+    'BOSS_PAGE_STATUS',
+    'BOSS_SCAN_JOBS',
+    'BOSS_OPEN_JOB',
+    'BOSS_SEND_GREETING',
+    'BOSS_CHECK_REPLIES',
+  ].includes(String(value.type));
 }
 
 async function handleRequest(request: ContentRequest): Promise<ContentResponse> {
@@ -20,14 +30,16 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
         ok: true,
         status: getPageStatus(),
       };
-    case 'BOSS_SCAN_JOBS':
+    case 'BOSS_SCAN_JOBS': {
+      const result = await scanJobsAcrossPages(request.maxPages);
       return {
         ok: true,
         payload: {
-          drafts: scanCurrentPage(),
+          ...result,
           page: getPageStatus(),
         },
       };
+    }
     case 'BOSS_OPEN_JOB': {
       const opened = await openJob(request.url);
       return {
@@ -42,6 +54,11 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
       return {
         ok: true,
         result: await sendGreeting(request.url, request.text),
+      };
+    case 'BOSS_CHECK_REPLIES':
+      return {
+        ok: true,
+        replies: scanReplySignals(),
       };
   }
 }

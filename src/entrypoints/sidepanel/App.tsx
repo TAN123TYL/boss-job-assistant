@@ -8,19 +8,36 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { SetupStep } from '../../components/SetupStep';
-import { ScreenStep } from '../../components/ScreenStep';
-import { ReviewStep } from '../../components/ReviewStep';
-import { QueueStep } from '../../components/QueueStep';
 import { InlineNotice } from '../../components/InlineNotice';
 import type { Notice } from '../../components/InlineNotice';
+import { QueueStep } from '../../components/QueueStep';
+import { ReviewStep } from '../../components/ReviewStep';
+import { ScreenStep } from '../../components/ScreenStep';
+import { SetupStep } from '../../components/SetupStep';
+import { enhanceJobWithAi } from '../../shared/ai';
 import { approvedQueue, canExecuteQueue } from '../../shared/approval';
+import { backupToJson, parseAppBackup } from '../../shared/backup';
 import { sendContentRequest } from '../../shared/browser-tab';
+import { researchCompanyWithAi } from '../../shared/company-research';
 import { countSentToday } from '../../shared/execution';
 import { buildCandidateProfile } from '../../shared/matching';
+import {
+  canRecoverJob,
+  transitionFromResult,
+  transitionToQueued,
+  transitionToRecovered,
+  transitionToSending,
+} from '../../shared/queue';
 import { mergeScreenedJobs, screenJob } from '../../shared/screening';
 import { loadAppState, saveAppState } from '../../shared/storage';
-import type { AppState, BossPageStatus, ExecutionLog, ScreeningSettings } from '../../shared/types';
+import type {
+  AppState,
+  BossPageStatus,
+  BossSendResult,
+  ExecutionLog,
+  JobRecord,
+  ScreeningSettings,
+} from '../../shared/types';
 import { createId } from '../../shared/utils';
 
 type TabId = 'setup' | 'screen' | 'review' | 'queue';
@@ -42,9 +59,7 @@ function delay(duration: number): Promise<void> {
   });
 }
 
-function executionStatusFromResult(
-  status: 'sent' | 'blocked' | 'manual_required' | 'not_found',
-): AppState['jobs'][number]['executionStatus'] {
+function logStatusFromResult(status: BossSendResult['status']): ExecutionLog['status'] {
   if (status === 'sent') {
     return 'sent';
   }
@@ -57,19 +72,27 @@ function executionStatusFromResult(
   return 'failed';
 }
 
-function logStatusFromResult(
-  status: 'sent' | 'blocked' | 'manual_required' | 'not_found',
-): ExecutionLog['status'] {
-  if (status === 'sent') {
-    return 'sent';
-  }
-  if (status === 'blocked') {
-    return 'blocked';
-  }
-  if (status === 'manual_required') {
-    return 'manual_required';
-  }
-  return 'failed';
+function updateJob(
+  state: AppState,
+  jobId: string,
+  updater: (job: JobRecord) => JobRecord,
+): AppState {
+  return {
+    ...state,
+    jobs: state.jobs.map((job) => (job.id === jobId ? updater(job) : job)),
+  };
+}
+
+function createExecutionLog(job: JobRecord, result: BossSendResult, at: string): ExecutionLog {
+  return {
+    id: createId(),
+    jobId: job.id,
+    company: job.company,
+    title: job.title,
+    at,
+    status: logStatusFromResult(result.status),
+    message: result.message,
+  };
 }
 
 export function App() {
@@ -125,6 +148,37 @@ export function App() {
     });
   };
 
+  const exportBackup = () => {
+    if (!state) {
+      return;
+    }
+
+    const blob = new Blob([backupToJson(state)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `boss-job-assistant-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setNotice({
+      kind: 'success',
+      message: '备份已导出，不包含 API Key',
+    });
+  };
+
+  const importBackup = async (content: string) => {
+    if (!state) {
+      return;
+    }
+
+    const imported = parseAppBackup(content, state.settings);
+    await persist(imported);
+    setNotice({
+      kind: 'success',
+      message: '备份已恢复，当前 API Key 保持不变',
+    });
+  };
+
   const scanJobs = async () => {
     if (!state) {
       return;
@@ -134,7 +188,10 @@ export function App() {
     setNotice(null);
 
     try {
-      const response = await sendContentRequest({ type: 'BOSS_SCAN_JOBS' });
+      const response = await sendContentRequest({
+        type: 'BOSS_SCAN_JOBS',
+        maxPages: state.settings.maxScanPages,
+      });
       if (!response.ok) {
         throw new Error(response.error);
       }
@@ -146,14 +203,59 @@ export function App() {
         throw new Error(response.payload.page.message);
       }
       if (response.payload.drafts.length === 0) {
-        throw new Error('当前页面没有读取到岗位卡片，请确认位于岗位搜索结果页');
+        throw new Error('未读取到岗位，请确认位于 Boss 搜索结果页');
       }
 
       const profile = buildCandidateProfile(state.settings);
       const scannedAt = new Date().toISOString();
-      const screenedJobs = response.payload.drafts.map((draft) =>
+      let screenedJobs = response.payload.drafts.map((draft) =>
         screenJob(draft, profile, state.settings, scannedAt),
       );
+      let aiFailures = 0;
+      let researchFailures = 0;
+
+      const candidates = screenedJobs
+        .filter((job) => job.stage === 'ready_for_review')
+        .sort((left, right) => right.finalScore - left.finalScore)
+        .slice(0, 12);
+
+      if (state.settings.aiEnabled) {
+        for (const candidate of candidates) {
+          try {
+            const enhanced = await enhanceJobWithAi(candidate, state.settings);
+            screenedJobs = screenedJobs.map((job) => (job.id === candidate.id ? enhanced : job));
+          } catch {
+            aiFailures += 1;
+          }
+        }
+      }
+
+      if (state.settings.companyResearchEnabled) {
+        for (const candidate of screenedJobs.filter((job) => job.stage === 'ready_for_review')) {
+          try {
+            const researched = await researchCompanyWithAi(candidate, state.settings);
+            screenedJobs = screenedJobs.map((job) => (job.id === candidate.id ? researched : job));
+          } catch (error) {
+            researchFailures += 1;
+            const message = error instanceof Error ? error.message : '公司全网核验失败';
+            screenedJobs = screenedJobs.map((job) =>
+              job.id === candidate.id
+                ? {
+                    ...job,
+                    stage: 'company_rejected' as const,
+                    companyAssessment: {
+                      ...job.companyAssessment,
+                      trustDecision: 'unverified' as const,
+                      aiSummary: message,
+                    },
+                    rejectionReasons: [`公司全网核验失败，未进入待投递队列：${message}`],
+                  }
+                : job,
+            );
+          }
+        }
+      }
+
       const nextState: AppState = {
         ...state,
         jobs: mergeScreenedJobs(state.jobs, screenedJobs),
@@ -163,12 +265,23 @@ export function App() {
       await persist(nextState);
       setPageStatus(response.payload.page);
       const readyCount = screenedJobs.filter((job) => job.stage === 'ready_for_review').length;
+      const notes = [
+        `扫描 ${response.payload.pagesScanned} 页`,
+        `去重 ${response.payload.duplicatesSkipped} 个`,
+        `${readyCount} 个待确认`,
+      ];
+      if (aiFailures > 0) {
+        notes.push(`${aiFailures} 个 AI 复核失败`);
+      }
+      if (researchFailures > 0) {
+        notes.push(`${researchFailures} 个公司核验失败`);
+      }
+      if (response.payload.stoppedReason) {
+        notes.push(response.payload.stoppedReason);
+      }
       setNotice({
         kind: readyCount > 0 ? 'success' : 'info',
-        message:
-          readyCount > 0
-            ? `已筛选 ${response.payload.drafts.length} 个岗位，${readyCount} 个等待确认`
-            : `已筛选 ${response.payload.drafts.length} 个岗位，没有岗位通过当前条件`,
+        message: notes.join('，'),
       });
 
       if (readyCount > 0) {
@@ -190,20 +303,16 @@ export function App() {
     }
 
     const now = new Date().toISOString();
-    const nextState: AppState = {
-      ...state,
-      jobs: state.jobs.map((job) =>
-        job.id === jobId
-          ? {
-              ...job,
-              approvalStatus: 'approved' as const,
-              selectedGreeting: greeting.trim(),
-              approvedAt: now,
-              updatedAt: now,
-            }
-          : job,
-      ),
-    };
+    const nextState = updateJob(state, jobId, (job) => ({
+      ...job,
+      approvalStatus: 'approved',
+      selectedGreeting: greeting.trim(),
+      executionStatus: 'idle',
+      queueError: '',
+      lastAttemptAt: null,
+      approvedAt: now,
+      updatedAt: now,
+    }));
 
     await persist(nextState);
     setNotice({
@@ -218,23 +327,38 @@ export function App() {
     }
 
     const now = new Date().toISOString();
-    const nextState: AppState = {
-      ...state,
-      jobs: state.jobs.map((job) =>
-        job.id === jobId
-          ? {
-              ...job,
-              approvalStatus: 'skipped' as const,
-              updatedAt: now,
-            }
-          : job,
-      ),
-    };
+    const nextState = updateJob(state, jobId, (job) => ({
+      ...job,
+      approvalStatus: 'skipped',
+      updatedAt: now,
+    }));
 
     await persist(nextState);
     setNotice({
       kind: 'info',
       message: '岗位已跳过',
+    });
+  };
+
+  const recoverJob = async (jobId: string, manualRiskAcknowledged: boolean) => {
+    if (!state) {
+      return;
+    }
+    const job = state.jobs.find((candidate) => candidate.id === jobId);
+    if (!job || !canRecoverJob(job, manualRiskAcknowledged)) {
+      setNotice({
+        kind: 'error',
+        message: '该岗位不能自动恢复，请先在 Boss 页面人工核对',
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const nextState = updateJob(state, jobId, (candidate) => transitionToRecovered(candidate, now));
+    await persist(nextState);
+    setNotice({
+      kind: 'info',
+      message: '岗位已恢复到待发送状态，请重新确认后执行',
     });
   };
 
@@ -247,7 +371,7 @@ export function App() {
     if (!canExecuteQueue(state.jobs, secondConfirmation)) {
       setNotice({
         kind: 'error',
-        message: '没有已批准岗位，或尚未完成发送前确认',
+        message: '没有待发送岗位，或尚未完成发送前确认',
       });
       return;
     }
@@ -258,23 +382,14 @@ export function App() {
       message: '开始执行已批准队列',
     });
 
-    let workingState: AppState = {
-      ...state,
-      jobs: state.jobs.map((job) =>
-        queue.some((queuedJob) => queuedJob.id === job.id)
-          ? { ...job, executionStatus: 'queued' as const }
-          : job,
-      ),
-    };
-    await persist(workingState);
-
+    let workingState = state;
     let sentCount = 0;
     let stoppedReason = '';
 
     try {
       for (let index = 0; index < queue.length; index += 1) {
-        const job = queue[index];
-        if (!job) {
+        const queueItem = queue[index];
+        if (!queueItem) {
           break;
         }
 
@@ -287,51 +402,61 @@ export function App() {
           await delay(state.settings.sendIntervalSeconds * 1_000);
         }
 
-        const response = await sendContentRequest({
-          type: 'BOSS_SEND_GREETING',
-          url: job.sourceUrl,
-          text: job.selectedGreeting,
-        });
-        if (!response.ok) {
-          throw new Error(response.error);
-        }
-        if (!('result' in response)) {
-          throw new Error('页面未返回发送结果');
+        const beforeQueued = workingState.jobs.find((job) => job.id === queueItem.id);
+        if (!beforeQueued || beforeQueued.executionStatus !== 'idle') {
+          continue;
         }
 
-        const result = response.result;
-        const log: ExecutionLog = {
-          id: createId(),
-          jobId: job.id,
-          company: job.company,
-          title: job.title,
-          at: new Date().toISOString(),
-          status: logStatusFromResult(result.status),
-          message: result.message,
-        };
-        const executionStatus = executionStatusFromResult(result.status);
-        if (result.status === 'sent') {
-          sentCount += 1;
-        } else {
-          stoppedReason = result.message;
+        const queuedAt = new Date().toISOString();
+        workingState = updateJob(workingState, queueItem.id, (job) =>
+          transitionToQueued(job, queuedAt),
+        );
+        await persist(workingState);
+
+        const sendingAt = new Date().toISOString();
+        workingState = updateJob(workingState, queueItem.id, (job) =>
+          transitionToSending(job, sendingAt),
+        );
+        await persist(workingState);
+
+        let result: BossSendResult;
+        try {
+          const response = await sendContentRequest({
+            type: 'BOSS_SEND_GREETING',
+            url: queueItem.sourceUrl,
+            text: queueItem.selectedGreeting,
+          });
+          if (!response.ok) {
+            throw new Error(response.error);
+          }
+          if (!('result' in response)) {
+            throw new Error('页面未返回发送结果');
+          }
+          result = response.result;
+        } catch (error) {
+          result = {
+            status: 'manual_required',
+            message: `页面通信中断，可能已经发送，请人工核对：${
+              error instanceof Error ? error.message : '未知错误'
+            }`,
+          };
         }
 
+        const completedAt = new Date().toISOString();
+        workingState = updateJob(workingState, queueItem.id, (job) =>
+          transitionFromResult(job, result.status, result.message, completedAt),
+        );
+        const log = createExecutionLog(queueItem, result, completedAt);
         workingState = {
           ...workingState,
-          jobs: workingState.jobs.map((candidate) =>
-            candidate.id === job.id
-              ? {
-                  ...candidate,
-                  executionStatus,
-                  updatedAt: log.at,
-                }
-              : candidate,
-          ),
           executionLogs: [...workingState.executionLogs, log],
         };
         await persist(workingState);
 
-        if (result.status !== 'sent') {
+        if (result.status === 'sent') {
+          sentCount += 1;
+        } else {
+          stoppedReason = result.message;
           break;
         }
       }
@@ -421,7 +546,13 @@ export function App() {
         {notice ? <InlineNotice notice={notice} /> : null}
 
         {activeTab === 'setup' ? (
-          <SetupStep settings={state.settings} connected={connected} onSave={saveSettings} />
+          <SetupStep
+            settings={state.settings}
+            connected={connected}
+            onSave={saveSettings}
+            onExportBackup={exportBackup}
+            onImportBackup={importBackup}
+          />
         ) : null}
         {activeTab === 'screen' ? (
           <ScreenStep
@@ -440,12 +571,13 @@ export function App() {
             connected={connected}
             busy={busyAction === 'execute'}
             onExecute={executeQueue}
+            onRecover={recoverJob}
           />
         ) : null}
       </main>
 
       <footer className="app-footer">
-        <span>v0.1.0</span>
+        <span>v0.2.0</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

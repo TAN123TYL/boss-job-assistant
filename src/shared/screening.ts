@@ -5,11 +5,18 @@ import { scoreResumeMatch } from './matching';
 import type { BossJobDraft, CandidateProfile, JobRecord, ScreeningSettings } from './types';
 import { clamp, hashString, unique } from './utils';
 
-function createJobFingerprint(draft: BossJobDraft): string {
+export function canonicalJobUrl(url: string): string {
+  const jobId = url.match(/\/job_detail\/([^/?#]+)/u)?.[1];
+  return jobId ? `job:${jobId.toLocaleLowerCase('zh-CN')}` : url.trim();
+}
+
+export function createJobFingerprint(draft: BossJobDraft): string {
+  const identity = canonicalJobUrl(draft.url);
   return hashString(
-    [draft.url, draft.title, draft.company, draft.location]
-      .map((value) => value.trim().toLocaleLowerCase('zh-CN'))
-      .join('|'),
+    identity ||
+      [draft.title, draft.company, draft.location]
+        .map((value) => value.trim().toLocaleLowerCase('zh-CN'))
+        .join('|'),
   );
 }
 
@@ -93,16 +100,20 @@ export function screenJob(
     companySize: draft.companySize,
     financing: draft.financing,
     recruiter: draft.recruiter,
+    companyPageText: draft.companyPageText ?? '',
     stage: 'ready_for_review',
     finalScore,
     matchResult,
     cityResult,
     companyAssessment,
+    aiReview: null,
     greetingOptions: greetings.options,
     recommendedGreetingId: greetings.recommendedId,
     selectedGreeting: recommended?.text ?? '',
     approvalStatus: 'pending',
     executionStatus: 'idle',
+    queueError: '',
+    lastAttemptAt: null,
     rejectionReasons: [],
     discoveredAt: timestamp,
     updatedAt: timestamp,
@@ -136,6 +147,7 @@ function createRejectedRecord(input: RejectedRecordInput): JobRecord {
     companySize: input.draft.companySize,
     financing: input.draft.financing,
     recruiter: input.draft.recruiter,
+    companyPageText: input.draft.companyPageText ?? '',
     stage: input.stage,
     finalScore: 0,
     matchResult: input.matchResult,
@@ -149,6 +161,11 @@ function createRejectedRecord(input: RejectedRecordInput): JobRecord {
       score: 0,
       grade: 'D',
       passed: false,
+      source: 'page_signals',
+      trustDecision: 'unverified',
+      aiSummary: '',
+      aiEvidence: [],
+      researchedAt: null,
       positives: [],
       risks: [],
       recommendedChecks: [],
@@ -159,10 +176,13 @@ function createRejectedRecord(input: RejectedRecordInput): JobRecord {
     selectedGreeting: '',
     approvalStatus: 'pending',
     executionStatus: 'idle',
+    queueError: '',
+    lastAttemptAt: null,
     rejectionReasons: unique(input.rejectionReasons),
     discoveredAt: input.timestamp,
     updatedAt: input.timestamp,
     approvedAt: null,
+    aiReview: null,
   };
 }
 
@@ -185,6 +205,7 @@ export function mergeScreenedJobs(
         ...job,
         approvalStatus: 'approved' as const,
         executionStatus: 'sent' as const,
+        queueError: '',
         selectedGreeting: existing.selectedGreeting || job.selectedGreeting,
         approvedAt: existing.approvedAt,
         discoveredAt: existing.discoveredAt,
@@ -195,6 +216,9 @@ export function mergeScreenedJobs(
       return {
         ...job,
         approvalStatus: existing.approvalStatus,
+        executionStatus: existing.executionStatus,
+        queueError: existing.queueError,
+        lastAttemptAt: existing.lastAttemptAt,
         selectedGreeting: existing.selectedGreeting || job.selectedGreeting,
         approvedAt: existing.approvedAt,
         discoveredAt: existing.discoveredAt,

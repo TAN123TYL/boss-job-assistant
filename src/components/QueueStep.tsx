@@ -1,6 +1,15 @@
 import { useState } from 'react';
-import { CircleStop, Clock3, History, LockKeyhole, Send, ShieldCheck } from 'lucide-react';
-import { approvedQueue } from '../shared/approval';
+import {
+  CircleAlert,
+  CircleStop,
+  Clock3,
+  History,
+  LockKeyhole,
+  RotateCcw,
+  Send,
+  ShieldCheck,
+} from 'lucide-react';
+import { approvedQueue, recoverableJobs } from '../shared/approval';
 import { countSentToday } from '../shared/execution';
 import type { AppState } from '../shared/types';
 import { EmptyState } from './EmptyState';
@@ -10,11 +19,13 @@ interface QueueStepProps {
   connected: boolean;
   busy: boolean;
   onExecute: (secondConfirmation: boolean) => Promise<void>;
+  onRecover: (jobId: string, manualRiskAcknowledged: boolean) => Promise<void>;
 }
 
-export function QueueStep({ state, connected, busy, onExecute }: QueueStepProps) {
+export function QueueStep({ state, connected, busy, onExecute, onRecover }: QueueStepProps) {
   const [confirming, setConfirming] = useState(false);
   const queue = approvedQueue(state.jobs);
+  const interrupted = recoverableJobs(state.jobs);
   const sentToday = countSentToday(state.executionLogs);
   const remaining = Math.max(0, state.settings.maxDailyMessages - sentToday);
 
@@ -69,6 +80,34 @@ export function QueueStep({ state, connected, busy, onExecute }: QueueStepProps)
           ))}
         </div>
       )}
+
+      {interrupted.length > 0 ? (
+        <div className="recovery-list">
+          <div className="execution-history__heading">
+            <CircleAlert aria-hidden="true" size={16} />
+            <h3>待恢复岗位</h3>
+          </div>
+          {interrupted.map((job) => (
+            <article className="recovery-item" key={job.id}>
+              <div>
+                <strong>
+                  {job.company} · {job.title}
+                </strong>
+                <p>{job.queueError || `状态：${job.executionStatus}，需要人工核对后再恢复`}</p>
+              </div>
+              <button
+                className="button button--ghost button--compact"
+                type="button"
+                disabled={busy}
+                onClick={() => void onRecover(job.id, job.executionStatus === 'manual_required')}
+              >
+                <RotateCcw aria-hidden="true" size={14} />
+                {job.executionStatus === 'manual_required' ? '核对后恢复' : '恢复重试'}
+              </button>
+            </article>
+          ))}
+        </div>
+      ) : null}
 
       <button
         className="button button--primary button--wide"

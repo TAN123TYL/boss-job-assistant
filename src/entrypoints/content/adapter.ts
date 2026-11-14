@@ -1,4 +1,10 @@
-import type { BossJobDraft, BossPageStatus, BossSendResult } from '../../shared/types';
+import type {
+  BossJobDraft,
+  BossPageStatus,
+  BossReplySignal,
+  BossScanPayload,
+  BossSendResult,
+} from '../../shared/types';
 import { normalizeWhitespace, truncate, unique } from '../../shared/utils';
 
 const JOB_LINK_SELECTOR = 'a[href*="/job_detail/"]';
@@ -59,6 +65,34 @@ function extractFinancing(value: string): string {
     value.match(/(未融资|不需要融资|天使轮|A轮|B轮|C轮|D轮及以上|已上市|战略融资|种子轮)/iu)?.[0] ??
     ''
   );
+}
+
+function jobIdentity(url: string): string {
+  const jobId = url.match(/\/job_detail\/([^/?#]+)/u)?.[1];
+  return jobId ? `job:${jobId}` : url;
+}
+
+export function dedupeJobDrafts(drafts: BossJobDraft[]): {
+  drafts: BossJobDraft[];
+  duplicatesSkipped: number;
+} {
+  const byIdentity = new Map<string, BossJobDraft>();
+
+  for (const draft of drafts) {
+    const identity = jobIdentity(draft.url);
+    const existing = byIdentity.get(identity);
+    if (!existing) {
+      byIdentity.set(identity, draft);
+      continue;
+    }
+
+    byIdentity.set(identity, mergeDraft(existing, draft));
+  }
+
+  return {
+    drafts: [...byIdentity.values()],
+    duplicatesSkipped: drafts.length - byIdentity.size,
+  };
 }
 
 function findJobCard(link: HTMLAnchorElement): HTMLElement | null {
@@ -160,6 +194,12 @@ export function extractVisibleDetail(): Partial<BossJobDraft> {
       '.boss-info .name',
       '[class*="recruiter"]',
     ]),
+    companyPageText: firstText(detailRoot, [
+      '.company-info',
+      '.company-info-box',
+      '.company-detail',
+      '[class*="company-info"]',
+    ]),
     source: 'detail',
   };
 }
@@ -175,6 +215,7 @@ function mergeDraft(base: BossJobDraft, detail: Partial<BossJobDraft>): BossJobD
     companySize: detail.companySize || base.companySize,
     financing: detail.financing || base.financing,
     recruiter: detail.recruiter || base.recruiter,
+    companyPageText: detail.companyPageText || base.companyPageText || '',
     tags: unique([...base.tags, ...(detail.tags ?? [])]),
     source: detail.description ? 'detail' : base.source,
   };
@@ -216,12 +257,111 @@ export function scanCurrentPage(): BossJobDraft[] {
       companySize: detail.companySize ?? '',
       financing: detail.financing ?? '',
       recruiter: detail.recruiter ?? '',
+      companyPageText: detail.companyPageText ?? '',
       source: 'detail',
     };
     draftsByUrl.set(directDraft.url, directDraft);
   }
 
   return [...draftsByUrl.values()];
+}
+
+function currentPageSignature(): string {
+  return [...document.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTOR)]
+    .filter(isVisible)
+    .map((link) => jobIdentity(link.href))
+    .join('|');
+}
+
+function findNextPageControl(): HTMLElement | null {
+  const candidates = [...document.querySelectorAll<HTMLElement>('button, a, [role="button"]')];
+
+  return (
+    candidates.find((element) => {
+      if (!isVisible(element)) {
+        return false;
+      }
+
+      const text =
+        normalizeWhitespace(element.textContent ?? '') ||
+        normalizeWhitespace(element.getAttribute('aria-label') ?? '');
+      const disabled =
+        element.hasAttribute('disabled') ||
+        element.getAttribute('aria-disabled') === 'true' ||
+        /disabled/iu.test(element.className);
+      return !disabled && /^(下一页|下页|next|next page)$/iu.test(text);
+    }) ?? null
+  );
+}
+
+async function waitForPageChange(previousSignature: string): Promise<boolean> {
+  const deadline = Date.now() + 10_000;
+
+  while (Date.now() < deadline) {
+    await wait(300);
+    if (detectVerificationPage()) {
+      return false;
+    }
+    const signature = currentPageSignature();
+    if (signature && signature !== previousSignature) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export async function scanJobsAcrossPages(
+  requestedPages: number,
+): Promise<Omit<BossScanPayload, 'page'>> {
+  const maximumPages = Math.max(1, Math.min(20, Math.round(requestedPages)));
+  const collected: BossJobDraft[] = [];
+  let pagesScanned = 0;
+  let stoppedReason = '';
+
+  for (let pageIndex = 0; pageIndex < maximumPages; pageIndex += 1) {
+    if (detectVerificationPage()) {
+      stoppedReason = '检测到验证页面，已停止翻页';
+      break;
+    }
+
+    const pageDrafts = scanCurrentPage();
+    pagesScanned += 1;
+    if (pageDrafts.length === 0) {
+      stoppedReason = pageIndex === 0 ? '当前页面没有读取到岗位' : '下一页没有岗位数据';
+      break;
+    }
+    collected.push(...pageDrafts);
+
+    if (pageIndex >= maximumPages - 1) {
+      break;
+    }
+
+    const nextControl = findNextPageControl();
+    if (!nextControl) {
+      stoppedReason = '没有找到下一页按钮';
+      break;
+    }
+
+    const previousSignature = currentPageSignature();
+    nextControl.scrollIntoView({ block: 'center' });
+    nextControl.click();
+    const changed = await waitForPageChange(previousSignature);
+    if (!changed) {
+      stoppedReason = detectVerificationPage()
+        ? '翻页后出现验证页面'
+        : '翻页后岗位列表未发生可识别变化';
+      break;
+    }
+  }
+
+  const deduped = dedupeJobDrafts(collected);
+  return {
+    drafts: deduped.drafts,
+    pagesScanned,
+    duplicatesSkipped: deduped.duplicatesSkipped,
+    stoppedReason,
+  };
 }
 
 export function detectVerificationPage(): boolean {
@@ -272,7 +412,12 @@ export async function openJob(url: string): Promise<boolean> {
 
   if (link) {
     link.scrollIntoView({ block: 'center' });
+    const target = link.getAttribute('target');
+    link.removeAttribute('target');
     link.click();
+    if (target) {
+      link.setAttribute('target', target);
+    }
     await wait(1_200);
     return true;
   }
@@ -346,7 +491,11 @@ function setComposerValue(editor: HTMLElement, text: string): boolean {
     return true;
   }
 
-  editor.textContent = text;
+  editor.innerHTML = '';
+  document.execCommand('insertText', false, text);
+  if (normalizeWhitespace(editor.textContent ?? '') !== normalizeWhitespace(text)) {
+    editor.textContent = text;
+  }
   editor.dispatchEvent(
     new InputEvent('input', {
       bubbles: true,
@@ -355,6 +504,45 @@ function setComposerValue(editor: HTMLElement, text: string): boolean {
     }),
   );
   return normalizeWhitespace(editor.textContent ?? '') === normalizeWhitespace(text);
+}
+
+function isInsideComposer(element: Element): boolean {
+  return Boolean(
+    element.closest('textarea, input, [contenteditable="true"], button, [role="button"], form'),
+  );
+}
+
+export function countSentBubbles(text: string): number {
+  const expected = normalizeWhitespace(text);
+  if (!expected) {
+    return 0;
+  }
+
+  return [
+    ...document.querySelectorAll<HTMLElement>(
+      '.chat-message, .message-item, [class*="message"], [class*="bubble"]',
+    ),
+  ]
+    .filter((element) => isVisible(element) && !isInsideComposer(element))
+    .filter((element) => {
+      const actual = normalizeWhitespace(element.textContent ?? '');
+      return (
+        actual === expected || (actual.includes(expected) && actual.length <= expected.length + 40)
+      );
+    }).length;
+}
+
+async function waitForSentBubble(text: string, baselineCount: number): Promise<boolean> {
+  const deadline = Date.now() + 8_000;
+
+  while (Date.now() < deadline) {
+    if (countSentBubbles(text) > baselineCount) {
+      return true;
+    }
+    await wait(250);
+  }
+
+  return false;
 }
 
 function findSendButton(): HTMLButtonElement | null {
@@ -436,8 +624,9 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
     };
   }
 
+  const messageText = truncate(text, 500);
+  const baselineBubbles = countSentBubbles(messageText);
   sendButton.click();
-  await wait(600);
 
   if (detectVerificationPage()) {
     return {
@@ -446,8 +635,47 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
     };
   }
 
+  const verified = await waitForSentBubble(messageText, baselineBubbles);
+  if (!verified) {
+    return {
+      status: 'manual_required',
+      message: '已触发发送，但未检测到完整文字气泡，请人工确认是否已经发送',
+    };
+  }
+
   return {
     status: 'sent',
-    message: '已点击发送',
+    message: '已检测到完整发送气泡',
+  };
+}
+
+function numericText(element: HTMLElement): number {
+  const match = normalizeWhitespace(element.textContent ?? '').match(/\d+/u);
+  return match ? Number(match[0]) : 0;
+}
+
+export function scanReplySignals(): BossReplySignal {
+  const unreadElements = [
+    ...document.querySelectorAll<HTMLElement>(
+      '[class*="unread"], [class*="badge"], [class*="red-dot"], [class*="message-count"]',
+    ),
+  ].filter(isVisible);
+  const counts = unreadElements.map(numericText).filter((count) => count > 0 && count < 1_000);
+  const unreadCount = counts.length > 0 ? Math.max(...counts) : unreadElements.length;
+  const snippets = unique(
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        '.user-list li, [class*="conversation"], [class*="message-item"]',
+      ),
+    ]
+      .filter(isVisible)
+      .map((element) => truncate(element.textContent ?? '', 120))
+      .filter(Boolean),
+  ).slice(0, 3);
+
+  return {
+    unreadCount,
+    snippets,
+    messageUrl: 'https://www.zhipin.com/web/geek/chat',
   };
 }

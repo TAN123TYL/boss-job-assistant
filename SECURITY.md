@@ -11,7 +11,9 @@ privately to the maintainers.
 - The extension does not ask for a BOSS Zhipin password.
 - Resume text, job records, and generated messages are stored with
   `browser.storage.local`.
-- No data is sent to a third-party model in version 0.1.0.
+- AI and company-research requests are optional and only target endpoints
+  configured by the user.
+- API keys are excluded from JSON backups.
 - Export files can contain personal information. Review them before sharing.
 
 ## Expected safeguards
@@ -24,3 +26,5 @@ The project must preserve all of these safeguards:
 4. CAPTCHAs and anti-bot controls are never bypassed.
 5. Credentials must never be committed to the repository or stored by the
    extension.
+6. A send is marked successful only after a new matching message bubble appears.
+7. Failed, blocked, or unverified sends require explicit recovery.

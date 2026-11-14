@@ -6,18 +6,21 @@ The extension keeps the expensive decision points deterministic and local:
 
 1. Match the resume to a job.
 2. Keep only jobs in configured cities.
-3. Assess page-level company signals.
-4. Generate editable greeting options.
-5. Require explicit job approval.
-6. Require a second confirmation before queue execution.
+3. Assess recruitment-page company signals.
+4. Optionally verify public company information through search and an AI provider.
+5. Generate editable greeting options.
+6. Require explicit job approval.
+7. Require a second confirmation before queue execution.
+8. Confirm a new complete message bubble before marking a send successful.
 
 ## Layers
 
 ### Domain
 
 `src/shared` contains pure TypeScript functions for matching, city filtering,
-company signals, greeting generation, approval, and execution limits. These
-modules do not access browser APIs and are covered by Vitest.
+company signals, AI response validation, company evidence mapping, greeting
+generation, approval, queue transitions, backups, and execution limits. These
+modules avoid browser APIs where possible and are covered by Vitest.
 
 ### Browser adapter
 
@@ -32,9 +35,9 @@ with `browser.storage.local`; no remote backend is used in version 0.1.0.
 
 ### Lifecycle
 
-`src/entrypoints/background.ts` configures the toolbar button to open the side
-panel. It does not run the send queue, so closing the side panel stops an
-in-progress queue instead of leaving an unsupervised background sender.
+`src/entrypoints/background.ts` configures the toolbar button and a five-minute
+unread-reply alarm. It does not run the send queue, so closing the side panel
+stops an in-progress queue instead of leaving an unsupervised background sender.
 
 ## Data flow
 
@@ -46,11 +49,13 @@ flowchart LR
   C -->|outside target| R2[Rejected]
   C -->|passed| D[Company signal check]
   D -->|below threshold| R3[Rejected]
-  D -->|passed| E[Greeting drafts]
-  E --> F[Manual approval]
-  F -->|approved| G[Send queue]
-  G --> H[Second confirmation]
-  H --> I[Execute at controlled interval]
+  D -->|passed| D2[AI job review]
+  D2 --> E[Public company research]
+  E --> F[Greeting drafts]
+  F --> G[Manual approval]
+  G --> H[Send queue]
+  H --> I[Second confirmation]
+  I --> J[Send and verify bubble]
 ```
 
 ## Security invariants
@@ -58,16 +63,21 @@ flowchart LR
 - `approvedQueue` excludes jobs without explicit approval.
 - `canExecuteQueue` requires both an approved item and a second confirmation.
 - A verification page is checked before and after browser actions.
-- A queue stops on the first blocked, manual-intervention, or failed result.
+- A queue only starts jobs in the `idle` state.
+- A send succeeds only after a new matching message bubble is observed.
+- A queue stops on the first blocked, unverified, manual-intervention, or failed
+  result.
+- Failed and interrupted jobs require explicit recovery before another attempt.
 - Daily limits count only successful sends for the current local day.
 - The project never requests or stores a Boss password or session cookie.
 
 ## Company assessment boundary
 
-The company score combines page completeness, size, financing, description
-quality, and known risk phrases. It is a triage signal, not a factual
-certification. Every risky or incomplete company includes links for manual
-verification with public registries and business-information services.
+The local company score combines page completeness, size, financing, description
+quality, and known risk phrases. When configured, Tavily searches public
+information and an AI model evaluates only the returned evidence. The UI
+preserves the actual source URLs. This remains a triage signal, not a factual or
+legal certification.
 
 ## Page adapter strategy
 

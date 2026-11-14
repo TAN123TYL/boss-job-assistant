@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { detectVerificationPage, scanCurrentPage } from './adapter';
+import {
+  countSentBubbles,
+  dedupeJobDrafts,
+  detectVerificationPage,
+  scanCurrentPage,
+} from './adapter';
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -56,5 +61,44 @@ describe('BOSS page adapter', () => {
     document.body.textContent = '请完成验证';
 
     expect(detectVerificationPage()).toBe(true);
+  });
+
+  it('deduplicates jobs by job_detail id', () => {
+    const base = {
+      title: '数据分析师',
+      company: '示例公司',
+      location: '上海',
+      salary: '20-30K',
+      tags: [],
+      description: '旧描述',
+      companySize: '',
+      financing: '',
+      recruiter: '',
+      source: 'list' as const,
+    };
+    const result = dedupeJobDrafts([
+      {
+        ...base,
+        url: 'https://www.zhipin.com/job_detail/abc.html?from=search',
+      },
+      {
+        ...base,
+        description: '新描述',
+        url: 'https://www.zhipin.com/job_detail/abc.html?from=detail',
+      },
+    ]);
+
+    expect(result.drafts).toHaveLength(1);
+    expect(result.duplicatesSkipped).toBe(1);
+    expect(result.drafts[0]?.description).toBe('新描述');
+  });
+
+  it('counts only visible message bubbles outside the composer', () => {
+    document.body.innerHTML = `
+      <div class="chat-message">您好，想进一步沟通岗位。</div>
+      <div contenteditable="true">您好，想进一步沟通岗位。</div>
+    `;
+
+    expect(countSentBubbles('您好，想进一步沟通岗位。')).toBe(1);
   });
 });

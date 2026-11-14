@@ -7,9 +7,19 @@
 - Job metadata visible on the page
 - Generated and edited greetings
 - Approval and execution history
+- AI endpoint, model name, and local API keys
 
-The extension stores this data in `browser.storage.local`. Version 0.1.0 does
-not call an AI model, analytics service, or remote database.
+The extension stores this data in `browser.storage.local`. It does not use an
+analytics service or remote application database.
+
+## Optional external requests
+
+- With AI review enabled, resume excerpts and job text go to the configured
+  OpenAI-compatible model endpoint.
+- With company research enabled, the company name goes to Tavily Search.
+- Public search snippets and recruitment-page company information go to the
+  configured AI endpoint for risk summarization.
+- No Tavily or AI key is included in exported backups.
 
 ## Not collected
 
