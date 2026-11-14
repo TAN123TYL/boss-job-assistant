@@ -7,6 +7,7 @@ import type {
   ReliabilityGrade,
   ScreeningSettings,
 } from './types';
+import { calculateRankingScore } from './scoring';
 import { clamp, truncate, unique } from './utils';
 
 interface TavilyResult {
@@ -237,7 +238,11 @@ export async function researchCompanyWithAi(
     ...job,
     stage: passed ? 'ready_for_review' : 'company_rejected',
     companyAssessment,
-    finalScore: Math.round(job.finalScore * 0.8 + verifiedScore * 0.2),
+    finalScore: calculateRankingScore({
+      resumeScore: job.aiReview?.score ?? job.matchResult.score,
+      companyScore: verifiedScore,
+      cityScore: job.cityResult.score,
+    }),
     rejectionReasons: passed
       ? job.rejectionReasons
       : [

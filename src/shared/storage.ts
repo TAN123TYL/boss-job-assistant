@@ -3,8 +3,8 @@ import { createDefaultState, DEFAULT_SETTINGS } from './defaults';
 import { APP_SCHEMA_VERSION } from './types';
 import type { AppState, CompanyAssessment, JobRecord, ScreeningSettings } from './types';
 
-const STORAGE_KEY = 'boss-job-assistant:state:v2';
-const LEGACY_STORAGE_KEY = 'boss-job-assistant:state:v1';
+const STORAGE_KEY = 'boss-job-assistant:state:v3';
+const LEGACY_STORAGE_KEYS = ['boss-job-assistant:state:v2', 'boss-job-assistant:state:v1'] as const;
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -85,6 +85,9 @@ function migrateJob(value: unknown): JobRecord {
 export function migrateAppState(value: unknown): AppState {
   const state = objectValue(value);
   const settings = migrateSettings(state.settings);
+  if (Number(state.schemaVersion ?? 1) < 3 && settings.minimumResumeScore === 65) {
+    settings.minimumResumeScore = 70;
+  }
   const jobs = Array.isArray(state.jobs) ? state.jobs.map(migrateJob) : [];
   const executionLogs = Array.isArray(state.executionLogs) ? state.executionLogs : [];
 
@@ -103,18 +106,20 @@ function hasStateShape(value: unknown): boolean {
 }
 
 export async function loadAppState(): Promise<AppState> {
-  const stored = await browser.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
+  const stored = await browser.storage.local.get([STORAGE_KEY, ...LEGACY_STORAGE_KEYS]);
   const current = stored[STORAGE_KEY];
 
   if (current && hasStateShape(current)) {
     return migrateAppState(current);
   }
 
-  const legacy = stored[LEGACY_STORAGE_KEY];
-  if (legacy && hasStateShape(legacy)) {
-    const migrated = migrateAppState(legacy);
-    await browser.storage.local.set({ [STORAGE_KEY]: migrated });
-    return migrated;
+  for (const legacyKey of LEGACY_STORAGE_KEYS) {
+    const legacy = stored[legacyKey];
+    if (legacy && hasStateShape(legacy)) {
+      const migrated = migrateAppState(legacy);
+      await browser.storage.local.set({ [STORAGE_KEY]: migrated });
+      return migrated;
+    }
   }
 
   return createDefaultState();

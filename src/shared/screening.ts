@@ -2,8 +2,9 @@ import { matchCity } from './city';
 import { assessCompany } from './company';
 import { generateGreetings } from './greeting';
 import { scoreResumeMatch } from './matching';
+import { calculateRankingScore } from './scoring';
 import type { BossJobDraft, CandidateProfile, JobRecord, ScreeningSettings } from './types';
-import { clamp, hashString, unique } from './utils';
+import { hashString, unique } from './utils';
 
 export function canonicalJobUrl(url: string): string {
   const jobId = url.match(/\/job_detail\/([^/?#]+)/u)?.[1];
@@ -79,13 +80,11 @@ export function screenJob(
   const recommended =
     greetings.options.find((option) => option.id === greetings.recommendedId) ??
     greetings.options[0];
-  const finalScore = Math.round(
-    clamp(
-      matchResult.score * 0.6 + companyAssessment.score * 0.25 + cityResult.score * 0.15,
-      0,
-      100,
-    ),
-  );
+  const finalScore = calculateRankingScore({
+    resumeScore: matchResult.score,
+    companyScore: companyAssessment.score,
+    cityScore: cityResult.score,
+  });
 
   return {
     id,

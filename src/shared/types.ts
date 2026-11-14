@@ -1,4 +1,4 @@
-export const APP_SCHEMA_VERSION = 2;
+export const APP_SCHEMA_VERSION = 3;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'skipped';
 export type ExecutionStatus =

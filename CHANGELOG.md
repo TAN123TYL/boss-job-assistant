@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-14
+
+### Changed
+
+- Increased resume evidence to 65% of resume-match scoring and reduced job-title
+  matching to 20%.
+- Changed final ranking to 75% resume match, 15% company trust, and 10% city.
+- Raised the default minimum resume score from 65 to 70 and migrated the previous
+  default automatically.
+
 ## [0.2.2] - 2026-11-14
 
 ### Changed

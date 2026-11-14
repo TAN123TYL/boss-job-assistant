@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS: ScreeningSettings = {
   targetCities: '',
   excludedKeywords: '外包,劳务派遣,销售,保险,币圈',
   allowRemote: true,
-  minimumResumeScore: 65,
+  minimumResumeScore: 70,
   minimumCompanyScore: 55,
   maxDailyMessages: 12,
   sendIntervalSeconds: 30,

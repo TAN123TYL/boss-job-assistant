@@ -202,6 +202,9 @@ export function SetupStep({
           />
         </label>
       </div>
+      <p className="weight-note">
+        综合排序：简历匹配 75% · 公司可信度 15% · 城市便利度 10%。城市和公司门槛仍会先行过滤。
+      </p>
 
       <div className="form-grid form-grid--three">
         <label className="field">

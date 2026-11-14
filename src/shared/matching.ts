@@ -79,6 +79,13 @@ const EDUCATION_RANK: Array<{ pattern: RegExp; rank: number }> = [
   { pattern: /大专|专科|associate/iu, rank: 1 },
 ];
 
+export const RESUME_MATCH_WEIGHTS = {
+  title: 20,
+  skills: 45,
+  experience: 20,
+  education: 15,
+} as const;
+
 const segmenter =
   typeof Intl.Segmenter === 'function'
     ? new Intl.Segmenter('zh-CN', { granularity: 'word' })
@@ -276,7 +283,10 @@ export function scoreResumeMatch(
   const experienceScore = experienceMatch(profile, job);
   const educationScore = educationMatch(profile, job);
   const score = Math.round(
-    titleScore * 30 + skills.score * 40 + experienceScore * 15 + educationScore * 15,
+    titleScore * RESUME_MATCH_WEIGHTS.title +
+      skills.score * RESUME_MATCH_WEIGHTS.skills +
+      experienceScore * RESUME_MATCH_WEIGHTS.experience +
+      educationScore * RESUME_MATCH_WEIGHTS.education,
   );
 
   const evidence: string[] = [];

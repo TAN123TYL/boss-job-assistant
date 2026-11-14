@@ -1,4 +1,5 @@
 import type { AiJobReview, GreetingOption, JobRecord, ScreeningSettings } from './types';
+import { calculateRankingScore } from './scoring';
 import { clamp, normalizeWhitespace, truncate, unique } from './utils';
 
 interface ChatMessage {
@@ -173,7 +174,11 @@ export async function enhanceJobWithAi(
   const recommended =
     aiGreetings.find((option) => option.id === 'evidence' && /\d/u.test(option.text)) ??
     aiGreetings[0];
-  const finalScore = Math.round(job.finalScore * 0.35 + review.score * 0.65);
+  const finalScore = calculateRankingScore({
+    resumeScore: review.score,
+    companyScore: job.companyAssessment.score,
+    cityScore: job.cityResult.score,
+  });
 
   return {
     ...job,
