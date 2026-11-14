@@ -354,6 +354,218 @@ a {
   background: transparent;
 }
 
+.city-select {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.city-select__control {
+  min-height: 40px;
+  padding: 5px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.city-select__control:hover,
+.city-select__control.is-open {
+  border-color: var(--accent);
+}
+
+.city-select__control:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+  outline: 0;
+}
+
+.city-select__control > svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.city-select__summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.city-select__placeholder {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.city-chip {
+  min-height: 25px;
+  padding: 0 4px 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #c6e2da;
+  border-radius: 5px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.city-chip__remove {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  color: var(--accent-dark);
+  background: transparent;
+  cursor: pointer;
+}
+
+.city-chip__remove:hover {
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.city-select__more {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.city-select__popover {
+  position: absolute;
+  z-index: 18;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  min-width: 280px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.city-select__search {
+  min-height: 42px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--muted);
+}
+
+.city-select__search input {
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  outline: 0;
+}
+
+.city-select__groups {
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.city-group {
+  padding: 9px;
+  display: grid;
+  gap: 7px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.city-group:last-child {
+  border-bottom: 0;
+}
+
+.city-group h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.city-group__items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.city-option {
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  color: var(--muted-strong);
+  background: var(--surface);
+  font-size: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.city-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.city-option:hover {
+  border-color: #b9d9d1;
+  background: #f4faf8;
+}
+
+.city-option.is-selected {
+  color: var(--accent-dark);
+  border-color: #a9d7cc;
+  background: var(--accent-soft);
+}
+
+.city-option svg {
+  flex: 0 0 auto;
+}
+
+.city-select__empty {
+  margin: 0;
+  padding: 20px 12px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.city-select__footer {
+  min-height: 40px;
+  padding: 5px 8px 5px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 9px;
+}
+
 .field--large textarea {
   min-height: 170px;
 }
@@ -1247,6 +1459,10 @@ a {
   }
 
   .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .city-group__items {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

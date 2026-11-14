@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-14
+
+### Changed
+
+- Replaced free-text target cities with a searchable, province-grouped
+  prefecture-level city selector.
+- City values are normalized to city units; districts, counties, autonomous
+  prefectures, and arbitrary input are not selectable.
+
 ## [0.2.0] - 2026-11-14
 
 ### Added

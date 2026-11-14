@@ -4,6 +4,7 @@ import { testAiConnection } from '../shared/ai';
 import { extractResumeText } from '../shared/resume-parser';
 import type { ScreeningSettings } from '../shared/types';
 import { splitList } from '../shared/utils';
+import { CitySelect } from './CitySelect';
 
 interface SetupStepProps {
   settings: ScreeningSettings;
@@ -151,24 +152,16 @@ export function SetupStep({
       {fileMessage ? <p className="field-success">{fileMessage}</p> : null}
       {fileError ? <p className="field-error">{fileError}</p> : null}
 
-      <div className="form-grid">
-        <label className="field">
-          <span className="field__label">目标岗位</span>
-          <input
-            value={draft.targetTitles}
-            onChange={(event) => update('targetTitles', event.target.value)}
-            placeholder="产品经理, AI 产品经理"
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">目标城市</span>
-          <input
-            value={draft.targetCities}
-            onChange={(event) => update('targetCities', event.target.value)}
-            placeholder="上海, 杭州"
-          />
-        </label>
-      </div>
+      <label className="field">
+        <span className="field__label">目标岗位</span>
+        <input
+          value={draft.targetTitles}
+          onChange={(event) => update('targetTitles', event.target.value)}
+          placeholder="产品经理, AI 产品经理"
+        />
+      </label>
+
+      <CitySelect value={draft.targetCities} onChange={(value) => update('targetCities', value)} />
 
       <label className="field">
         <span className="field__label">排除词</span>

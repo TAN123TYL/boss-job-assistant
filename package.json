@@ -1,6 +1,6 @@
 {
   "name": "boss-job-assistant",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Human-in-the-loop BOSS Zhipin job screening with AI review, company research, and verified sending.",
@@ -22,6 +22,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "china-area-data": "^5.0.1",
     "lucide-react": "^1.73.0",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.5.438",
