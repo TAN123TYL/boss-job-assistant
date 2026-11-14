@@ -266,7 +266,7 @@ export function App() {
       setPageStatus(response.payload.page);
       const readyCount = screenedJobs.filter((job) => job.stage === 'ready_for_review').length;
       const notes = [
-        `扫描 ${response.payload.pagesScanned} 页`,
+        `加载 ${response.payload.pagesScanned} 轮`,
         `去重 ${response.payload.duplicatesSkipped} 个`,
         `${readyCount} 个待确认`,
       ];
@@ -577,7 +577,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.2.1</span>
+        <span>v0.2.2</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

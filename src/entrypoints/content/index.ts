@@ -4,7 +4,7 @@ import type { ContentRequest, ContentResponse } from '../../shared/types';
 import {
   getPageStatus,
   openJob,
-  scanJobsAcrossPages,
+  scanJobsWithInfiniteScroll,
   scanReplySignals,
   sendGreeting,
 } from './adapter';
@@ -31,7 +31,7 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
         status: getPageStatus(),
       };
     case 'BOSS_SCAN_JOBS': {
-      const result = await scanJobsAcrossPages(request.maxPages);
+      const result = await scanJobsWithInfiniteScroll(request.maxPages);
       return {
         ok: true,
         payload: {

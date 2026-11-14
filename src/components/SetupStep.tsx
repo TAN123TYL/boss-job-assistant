@@ -205,11 +205,11 @@ export function SetupStep({
 
       <div className="form-grid form-grid--three">
         <label className="field">
-          <span className="field__label">扫描页数</span>
+          <span className="field__label">滚动加载轮数</span>
           <input
             type="number"
             min="1"
-            max="20"
+            max="30"
             value={draft.maxScanPages}
             onChange={(event) => update('maxScanPages', Number(event.target.value))}
           />
@@ -401,7 +401,7 @@ export function SetupStep({
           try {
             await onSave({
               ...draft,
-              maxScanPages: Math.max(1, Math.min(20, draft.maxScanPages)),
+              maxScanPages: Math.max(1, Math.min(30, draft.maxScanPages)),
               maxDailyMessages: Math.max(1, Math.min(50, draft.maxDailyMessages)),
               sendIntervalSeconds: Math.max(10, Math.min(300, draft.sendIntervalSeconds)),
             });

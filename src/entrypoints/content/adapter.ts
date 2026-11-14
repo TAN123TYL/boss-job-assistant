@@ -266,11 +266,12 @@ export function scanCurrentPage(): BossJobDraft[] {
   return [...draftsByUrl.values()];
 }
 
-function currentPageSignature(): string {
-  return [...document.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTOR)]
-    .filter(isVisible)
-    .map((link) => jobIdentity(link.href))
-    .join('|');
+function currentJobIdentities(): Set<string> {
+  return new Set(
+    [...document.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTOR)]
+      .filter(isVisible)
+      .map((link) => jobIdentity(link.href)),
+  );
 }
 
 function findNextPageControl(): HTMLElement | null {
@@ -294,72 +295,133 @@ function findNextPageControl(): HTMLElement | null {
   );
 }
 
-async function waitForPageChange(previousSignature: string): Promise<boolean> {
-  const deadline = Date.now() + 10_000;
+function scrollJobListToEnd(): void {
+  const list = document.querySelector<HTMLElement>(
+    '.rec-job-list, .job-list-container, .job-recommend-result',
+  );
+  const cards = [
+    ...document.querySelectorAll<HTMLElement>(
+      '.rec-job-list > li, .job-card-box, .job-card-wrapper',
+    ),
+  ].filter(isVisible);
+  const lastCard = cards.at(-1);
+  if (lastCard) {
+    lastCard.scrollIntoView({ block: 'end', inline: 'nearest' });
+  } else if (list) {
+    list.scrollIntoView({ block: 'end', inline: 'nearest' });
+  }
+
+  const scrollTargets = [
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+    list,
+    document.querySelector<HTMLElement>('.job-recommend-result'),
+  ].filter((element): element is Element => Boolean(element));
+
+  for (const element of scrollTargets) {
+    if ('scrollTop' in element) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }
+  window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' });
+  window.dispatchEvent(new Event('scroll'));
+  document.dispatchEvent(new Event('scroll'));
+}
+
+async function waitForNewJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
+  const deadline = Date.now() + 7_000;
 
   while (Date.now() < deadline) {
-    await wait(300);
+    await wait(400);
     if (detectVerificationPage()) {
-      return false;
+      return [];
     }
-    const signature = currentPageSignature();
-    if (signature && signature !== previousSignature) {
-      return true;
+
+    const drafts = scanCurrentPage();
+    if (drafts.some((draft) => !knownIds.has(jobIdentity(draft.url)))) {
+      return drafts;
     }
   }
 
-  return false;
+  return [];
 }
 
-export async function scanJobsAcrossPages(
-  requestedPages: number,
+async function loadMoreJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
+  const nextControl = findNextPageControl();
+  if (nextControl) {
+    const before = currentJobIdentities();
+    nextControl.scrollIntoView({ block: 'center' });
+    nextControl.click();
+    const deadline = Date.now() + 7_000;
+    while (Date.now() < deadline) {
+      await wait(400);
+      const current = currentJobIdentities();
+      if ([...current].some((identity) => !before.has(identity))) {
+        return scanCurrentPage();
+      }
+    }
+  }
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    scrollJobListToEnd();
+    const drafts = await waitForNewJobs(knownIds);
+    if (drafts.length > 0) {
+      return drafts;
+    }
+    await wait(700);
+  }
+
+  return [];
+}
+
+export async function scanJobsWithInfiniteScroll(
+  requestedRounds: number,
 ): Promise<Omit<BossScanPayload, 'page'>> {
-  const maximumPages = Math.max(1, Math.min(20, Math.round(requestedPages)));
-  const collected: BossJobDraft[] = [];
+  const maximumRounds = Math.max(1, Math.min(30, Math.round(requestedRounds)));
+  const collectedByJob = new Map<string, BossJobDraft>();
+  let observedDrafts = 0;
   let pagesScanned = 0;
   let stoppedReason = '';
 
-  for (let pageIndex = 0; pageIndex < maximumPages; pageIndex += 1) {
+  for (let round = 0; round < maximumRounds; round += 1) {
     if (detectVerificationPage()) {
-      stoppedReason = '检测到验证页面，已停止翻页';
+      stoppedReason = '检测到验证页面，已停止滚动加载';
       break;
     }
 
-    const pageDrafts = scanCurrentPage();
+    const visibleDrafts = scanCurrentPage();
     pagesScanned += 1;
-    if (pageDrafts.length === 0) {
-      stoppedReason = pageIndex === 0 ? '当前页面没有读取到岗位' : '下一页没有岗位数据';
-      break;
-    }
-    collected.push(...pageDrafts);
-
-    if (pageIndex >= maximumPages - 1) {
+    if (visibleDrafts.length === 0 && collectedByJob.size === 0) {
+      stoppedReason = '当前页面没有读取到岗位';
       break;
     }
 
-    const nextControl = findNextPageControl();
-    if (!nextControl) {
-      stoppedReason = '没有找到下一页按钮';
+    for (const draft of visibleDrafts) {
+      observedDrafts += 1;
+      const identity = jobIdentity(draft.url);
+      const existing = collectedByJob.get(identity);
+      collectedByJob.set(identity, existing ? mergeDraft(existing, draft) : draft);
+    }
+
+    if (round >= maximumRounds - 1) {
       break;
     }
 
-    const previousSignature = currentPageSignature();
-    nextControl.scrollIntoView({ block: 'center' });
-    nextControl.click();
-    const changed = await waitForPageChange(previousSignature);
-    if (!changed) {
+    const moreDrafts = await loadMoreJobs(new Set(collectedByJob.keys()));
+    if (moreDrafts.length === 0) {
       stoppedReason = detectVerificationPage()
-        ? '翻页后出现验证页面'
-        : '翻页后岗位列表未发生可识别变化';
+        ? '滚动加载后出现验证页面'
+        : '连续滚动后没有加载到新岗位';
       break;
     }
   }
 
-  const deduped = dedupeJobDrafts(collected);
+  const drafts = [...collectedByJob.values()];
   return {
-    drafts: deduped.drafts,
+    drafts,
     pagesScanned,
-    duplicatesSkipped: deduped.duplicatesSkipped,
+    duplicatesSkipped: Math.max(0, observedDrafts - drafts.length),
     stoppedReason,
   };
 }

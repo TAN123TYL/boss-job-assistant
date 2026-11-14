@@ -6,6 +6,7 @@ import {
   dedupeJobDrafts,
   detectVerificationPage,
   scanCurrentPage,
+  scanJobsWithInfiniteScroll,
 } from './adapter';
 
 beforeEach(() => {
@@ -25,6 +26,14 @@ beforeEach(() => {
       toJSON: () => ({}),
     },
   ] as unknown as DOMRectList);
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    value: vi.fn(),
+  });
 });
 
 describe('BOSS page adapter', () => {
@@ -100,5 +109,38 @@ describe('BOSS page adapter', () => {
     `;
 
     expect(countSentBubbles('您好，想进一步沟通岗位。')).toBe(1);
+  });
+
+  it('loads more jobs by scrolling when there is no next-page button', async () => {
+    const createCard = (id: string, title: string) => `
+      <li class="job-card-box">
+        <a href="https://www.zhipin.com/job_detail/${id}.html">
+          <span class="job-name">${title}</span>
+        </a>
+        <span class="salary">20-30K</span>
+        <span class="job-area">重庆·渝中区</span>
+        <a class="company-name" href="/gongsi/example.html">示例公司</a>
+      </li>
+    `;
+    document.body.innerHTML = `
+      <div class="job-recommend-result">
+        <div class="job-list-container">
+          <ul class="rec-job-list">
+            ${createCard('job-a', '数据分析师')}
+          </ul>
+        </div>
+      </div>
+    `;
+    const onScroll = () => {
+      document
+        .querySelector('.rec-job-list')
+        ?.insertAdjacentHTML('beforeend', createCard('job-b', '商业分析师'));
+    };
+    window.addEventListener('scroll', onScroll, { once: true });
+
+    const result = await scanJobsWithInfiniteScroll(2);
+
+    expect(result.drafts.map((job) => job.title)).toEqual(['数据分析师', '商业分析师']);
+    expect(result.pagesScanned).toBe(2);
   });
 });

@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-14
+
+### Changed
+
+- Replaced next-page navigation with automatic infinite scrolling for the Boss
+  recommendation job list.
+- Accumulates job cards across virtualized scroll updates and deduplicates by
+  stable `job_detail` identity.
+- Stops after repeated scroll passes produce no new jobs or a verification page.
+
 ## [0.2.1] - 2026-11-14
 
 ### Changed
