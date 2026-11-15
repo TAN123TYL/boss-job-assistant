@@ -90,6 +90,19 @@ function stringArray(value: unknown, maximum = 8): string[] {
   ).slice(0, maximum);
 }
 
+function humanizeGreeting(value: string): string {
+  return normalizeWhitespace(value)
+    .replace(/本人/gu, '我')
+    .replace(/关注到/gu, '看到')
+    .replace(/贵公司|贵司/gu, '公司')
+    .replace(/进一步沟通/gu, '聊聊')
+    .replace(/沟通一下/gu, '聊聊')
+    .replace(/匹配度较高/gu, '挺合适')
+    .replace(/期望有机会/gu, '想')
+    .replace(/恳请/gu, '想')
+    .replace(/方便与您/gu, '方便和您');
+}
+
 function greetingOptions(value: unknown): GreetingOption[] {
   const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const definitions: Array<[GreetingOption['id'], string, unknown]> = [
@@ -103,7 +116,7 @@ function greetingOptions(value: unknown): GreetingOption[] {
     .map(([id, label, text]) => ({
       id,
       label,
-      text: truncate(String(text), 260),
+      text: truncate(humanizeGreeting(String(text)), 120),
     }))
     .slice(0, 3);
 }
@@ -143,7 +156,7 @@ export async function enhanceJobWithAi(
       {
         role: 'system',
         content:
-          '你是严谨的中文求职匹配助手。只依据用户提供的简历与岗位原文判断，不得补造经历、学历、数字或技能。仅返回 JSON。',
+          '你是严谨的中文求职匹配助手。只依据用户提供的简历与岗位原文判断，不得补造经历、学历、数字或技能。招呼语要像在招聘软件里直接给 HR 发消息，短句、口语化、真诚，不要企业腔。仅返回 JSON。',
       },
       {
         role: 'user',
@@ -151,6 +164,8 @@ export async function enhanceJobWithAi(
           '请输出 JSON：',
           '{"score":0-100,"decision":"pass|reject","summary":"不超过120字","evidence":[""],"concerns":[""],"greetings":{"match":"","evidence":"","question":""}}',
           '任何招呼语必须基于真实简历事实，禁止承诺薪资、到岗时间或面试时间。',
+          '每条招呼语控制在40-90个汉字，以“您好”开头，最多提一个真实优势，结尾问一个自然的问题。',
+          '避免使用“关注到、进一步沟通、匹配度较高、贵司、该岗位、期望有机会”等正式套话，优先使用“看到、聊聊、方便吗、想问问”。',
           '简历：',
           truncate(settings.resumeText, 10_000),
           '岗位：',

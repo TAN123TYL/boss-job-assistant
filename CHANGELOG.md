@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-15
+
+### Changed
+
+- Rewrote local greeting templates into shorter, conversational chat messages.
+- Strengthened AI greeting prompts and normalized formal phrases such as
+  "关注到", "贵司", and "进一步沟通" into natural spoken wording.
+- Limited generated greetings to 120 characters.
+
 ## [0.2.8] - 2026-11-15
 
 ### Fixed

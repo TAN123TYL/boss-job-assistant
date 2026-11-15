@@ -12,7 +12,7 @@ describe('AI review parsing', () => {
         evidence: ['SQL', 'SQL', '用户增长'],
         concerns: ['缺少 A/B 测试'],
         greetings: {
-          match: '您好，我的 SQL 和用户增长经历与岗位较匹配。',
+          match: '您好，我关注到贵司岗位，本人SQL经验与岗位匹配度较高，期望有机会进一步沟通。',
           evidence: '',
         },
       },
@@ -22,6 +22,9 @@ describe('AI review parsing', () => {
     expect(result.score).toBe(88);
     expect(result.evidence).toEqual(['SQL', '用户增长']);
     expect(result.greetingOptions).toHaveLength(1);
+    expect(result.greetingOptions[0]?.text).toBe(
+      '您好，我看到公司岗位，我SQL经验与岗位挺合适，想聊聊。',
+    );
   });
 
   it('rejects malformed AI output', () => {

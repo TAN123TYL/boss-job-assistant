@@ -8,6 +8,20 @@ function pickEvidence(candidate: CandidateProfile, matchResult: ResumeMatchResul
   return matchedSkill ?? candidate.skills[0] ?? '相关业务';
 }
 
+function formatEvidence(value: string): string {
+  const labels: Record<string, string> = {
+    python: 'Python',
+    sql: 'SQL',
+    mysql: 'MySQL',
+    linux: 'Linux',
+    excel: 'Excel',
+    git: 'Git',
+    'c++': 'C++',
+    'ci/cd': 'CI/CD',
+  };
+  return labels[value.toLocaleLowerCase('zh-CN')] ?? value;
+}
+
 function pickHighlight(candidate: CandidateProfile, matchResult: ResumeMatchResult): string | null {
   const matched = matchResult.matchedKeywords;
   const relevant = candidate.highlights.find((highlight) =>
@@ -26,32 +40,32 @@ export function generateGreetings(
   recommendedId: GreetingOption['id'];
 } {
   const company = truncate(job.company || '贵公司', 18);
-  const title = truncate(job.title || '该岗位', 20);
-  const evidence = pickEvidence(candidate, matchResult);
+  const title = truncate(job.title || '这个岗位', 20);
+  const evidence = formatEvidence(pickEvidence(candidate, matchResult));
   const highlight = pickHighlight(candidate, matchResult);
 
   const options: GreetingOption[] = [
     {
       id: 'match',
-      label: '匹配直接',
+      label: '自然直接',
       text: normalizeWhitespace(
-        `您好，我关注到${company}的${title}岗位。我在${evidence}方面有相关经历，看过岗位描述后觉得匹配度较高，想和您进一步沟通，方便吗？`,
+        `您好，看到${company}在招${title}，我做过${evidence}相关的工作，感觉挺对口的。方便聊聊这个岗位吗？`,
       ),
     },
     {
       id: 'evidence',
-      label: '经历证明',
+      label: '经历带一句',
       text: normalizeWhitespace(
         highlight
-          ? `您好，看到${company}在招聘${title}。我有一段与岗位较相关的经历：${highlight}。方便和您确认一下团队的近期重点吗？`
-          : `您好，看到${company}在招聘${title}。我的${evidence}经历与岗位职责比较贴近，方便进一步沟通具体需求吗？`,
+          ? `您好，看到咱们在招${title}。我之前${highlight}，和岗位要求比较接近，想跟您具体聊聊，可以吗？`
+          : `您好，看到咱们在招${title}，我主要做${evidence}相关的工作，和岗位挺匹配的。方便简单聊聊吗？`,
       ),
     },
     {
       id: 'question',
-      label: '轻量提问',
+      label: '轻松提问',
       text: normalizeWhitespace(
-        `您好，我在寻找${title}方向的机会，${company}的岗位职责和我过去的${evidence}经历比较接近。想先请教一下，这个岗位目前最看重哪项能力？`,
+        `您好，想了解一下${title}这个岗位～我平时主要做${evidence}，想问问团队现在更看重哪方面能力？`,
       ),
     },
   ];
