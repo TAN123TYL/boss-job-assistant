@@ -17,13 +17,14 @@ const job: BossJobDraft = {
 };
 
 const candidate: CandidateProfile = {
-  resumeText: '掌握 Python、功能测试和自动化测试。',
+  resumeText:
+    '重庆交通大学 数据科学与大数据技术 2027届本科生。掌握 Python、功能测试和自动化测试，使用 Codex 辅助代码修改和结果核验。',
   targetTitles: ['自动化测试'],
   targetCities: ['重庆'],
   skills: ['python', '功能测试', '自动化测试'],
   educationLevel: 2,
   yearsOfExperience: 0,
-  highlights: ['使用 Python 完成自动化测试脚本，覆盖 20 个核心流程。'],
+  highlights: ['使用 Python 完成自动化测试脚本，累计提交60+个缺陷。'],
 };
 
 const matchResult: ResumeMatchResult = {
@@ -43,8 +44,16 @@ describe('colloquial greetings', () => {
     expect(result.options).toHaveLength(3);
     expect(combined).toContain('您好');
     expect(combined).toContain('Python');
-    expect(combined).not.toMatch(/关注到|进一步沟通|匹配度较高|贵司/gu);
-    expect(result.options.every((option) => option.text.length <= 110)).toBe(true);
-    expect(result.recommendedId).toBe('evidence');
+    expect(combined).toContain('贵司');
+    expect(combined).toContain('重庆交通大学');
+    expect(combined).toContain('数据科学与大数据技术专业');
+    expect(combined).toContain('2027届');
+    expect(combined).toContain('每周可到岗4天');
+    expect(combined).toContain('稳定实习3-6个月');
+    expect(combined).toContain('Codex');
+    expect(combined).not.toContain('**');
+    expect(result.options[0]?.text.length).toBeGreaterThan(100);
+    expect(result.options[0]?.text.length).toBeLessThanOrEqual(320);
+    expect(result.recommendedId).toBe('match');
   });
 });

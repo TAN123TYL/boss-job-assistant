@@ -3,8 +3,9 @@ import { createDefaultState, DEFAULT_SETTINGS } from './defaults';
 import { APP_SCHEMA_VERSION } from './types';
 import type { AppState, CompanyAssessment, JobRecord, ScreeningSettings } from './types';
 
-const STORAGE_KEY = 'boss-job-assistant:state:v4';
+const STORAGE_KEY = 'boss-job-assistant:state:v5';
 const LEGACY_STORAGE_KEYS = [
+  'boss-job-assistant:state:v4',
   'boss-job-assistant:state:v3',
   'boss-job-assistant:state:v2',
   'boss-job-assistant:state:v1',

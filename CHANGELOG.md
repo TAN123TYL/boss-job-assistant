@@ -7,6 +7,19 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-15
+
+### Changed
+
+- Reworked the primary greeting into a complete professional self-introduction
+  covering education, graduation year, role interest, JD-relevant skills, real
+  experience, AI-tool exposure, growth direction, availability, and interview
+  intent.
+- Added configurable weekly availability, internship duration, growth direction,
+  and AI-tool mention settings.
+- Removed Markdown emphasis markers from chat text and increased the primary
+  greeting limit to 420 characters.
+
 ## [0.3.0] - 2026-11-15
 
 ### Changed

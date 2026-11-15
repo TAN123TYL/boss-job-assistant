@@ -92,13 +92,12 @@ function stringArray(value: unknown, maximum = 8): string[] {
 
 function humanizeGreeting(value: string): string {
   return normalizeWhitespace(value)
+    .replace(/\*\*/gu, '')
     .replace(/本人/gu, '我')
     .replace(/关注到/gu, '看到')
-    .replace(/贵公司|贵司/gu, '公司')
+    .replace(/贵公司/gu, '贵司')
     .replace(/进一步沟通/gu, '聊聊')
     .replace(/沟通一下/gu, '聊聊')
-    .replace(/匹配度较高/gu, '挺合适')
-    .replace(/期望有机会/gu, '想')
     .replace(/恳请/gu, '想')
     .replace(/方便与您/gu, '方便和您');
 }
@@ -106,9 +105,9 @@ function humanizeGreeting(value: string): string {
 function greetingOptions(value: unknown): GreetingOption[] {
   const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const definitions: Array<[GreetingOption['id'], string, unknown]> = [
-    ['match', '匹配直接', record.match],
-    ['evidence', '经历证明', record.evidence],
-    ['question', '轻量提问', record.question],
+    ['match', '完整自荐', record.match],
+    ['evidence', '经历重点', record.evidence],
+    ['question', '简短提问', record.question],
   ];
 
   return definitions
@@ -116,7 +115,7 @@ function greetingOptions(value: unknown): GreetingOption[] {
     .map(([id, label, text]) => ({
       id,
       label,
-      text: truncate(humanizeGreeting(String(text)), 120),
+      text: truncate(humanizeGreeting(String(text)), 420),
     }))
     .slice(0, 3);
 }
@@ -152,17 +151,23 @@ async function generateAiGreetings(
       {
         role: 'system',
         content:
-          '你正在代求职者给招聘 HR 发第一条消息。必须像微信聊天一样自然，短句、口语化、不说空话，只使用简历和 JD 中真实存在的信息。只返回 JSON。',
+          '你正在代求职者给招聘 HR 写一条完整、自然、专业的自荐消息。表达要真诚，不生硬，也不要说空话；只使用简历、JD 和用户配置中真实存在的信息。只返回 JSON。',
       },
       {
         role: 'user',
         content: [
           '根据下面的简历和岗位 JD 写 3 条不同的开场沟通文案。',
           '输出 JSON：{"greetings":{"match":"","evidence":"","question":""}}',
-          '每条 40-90 个汉字，都以“您好”开头，只突出一个最相关的真实优势，结尾自然问一个问题。',
-          '不要使用“关注到、贵司、进一步沟通、匹配度较高、期望有机会、该岗位”等书面套话。',
-          'match：直接说明为什么合适；evidence：引用简历中的真实项目或成果；question：围绕 JD 真实职责提一个问题。',
-          '禁止编造经历、技术、数字、学历、薪资或到岗时间。',
+          '不要输出 Markdown、星号或项目符号，Boss 聊天框按纯文本发送。',
+          'match：180-320 个汉字。以“您好！我是”开头，写学校、专业、毕业届，对贵司岗位表达兴趣，提炼一到两项 JD 相关技能，引用一段真实经历，说明每周到岗天数和实习时长，最后表达面试意愿。',
+          'evidence：140-240 个汉字，重点写真实项目或实习经历与 JD 的关系。',
+          'question：80-180 个汉字，简洁介绍自己和技能，再围绕 JD 真实职责提一个问题。',
+          '语气自然专业，可以使用“贵司、非常感兴趣、期待能有面试机会”，但不要连续使用空洞套话。',
+          '禁止编造经历、技术、数字、学历、薪资、到岗时间或实习周期。',
+          `每周可到岗：${settings.weeklyAvailabilityDays}天`,
+          `可实习时长：${settings.internshipDuration || '未填写'}`,
+          `希望拓展方向：${settings.growthDirection || '未填写'}`,
+          `允许提到 AI 工具经验：${settings.mentionAiToolsInGreeting ? '是，但仅限简历真实出现' : '否'}`,
           '简历：',
           truncate(settings.resumeText, 10_000),
           '岗位 JD：',
@@ -208,7 +213,7 @@ export async function enhanceJobWithAi(
       {
         role: 'system',
         content:
-          '你是严谨的中文求职匹配助手。只依据用户提供的简历与岗位原文判断，不得补造经历、学历、数字或技能。招呼语要像在招聘软件里直接给 HR 发消息，短句、口语化、真诚，不要企业腔。仅返回 JSON。',
+          '你是严谨的中文求职匹配助手。只依据用户提供的简历、岗位原文和求职配置判断，不得补造经历、学历、数字、到岗时间或技能。招呼语要自然、专业、像求职者认真写给 HR 的第一条消息。仅返回 JSON。',
       },
       {
         role: 'user',
@@ -216,8 +221,14 @@ export async function enhanceJobWithAi(
           '请输出 JSON：',
           '{"score":0-100,"decision":"pass|reject","summary":"不超过120字","evidence":[""],"concerns":[""],"greetings":{"match":"","evidence":"","question":""}}',
           '任何招呼语必须基于真实简历事实，禁止承诺薪资、到岗时间或面试时间。',
-          '每条招呼语控制在40-90个汉字，以“您好”开头，最多提一个真实优势，结尾问一个自然的问题。',
-          '避免使用“关注到、进一步沟通、匹配度较高、贵司、该岗位、期望有机会”等正式套话，优先使用“看到、聊聊、方便吗、想问问”。',
+          '不要输出 Markdown、星号或项目符号，Boss 聊天框按纯文本发送。',
+          'match 写 180-320 个汉字的完整自荐：学校、专业、毕业届、对贵司岗位的兴趣、一到两项 JD 相关技能、一段真实经历、每周到岗时间、实习时长和面试意愿。',
+          'evidence 写 140-240 个汉字，重点说明真实项目或实习经历与 JD 的关系；question 写 80-180 个汉字并围绕 JD 提一个自然问题。',
+          '语气自然专业，可以使用“贵司、非常感兴趣、期待能有面试机会”，但避免空泛和重复。',
+          `每周可到岗：${settings.weeklyAvailabilityDays}天`,
+          `可实习时长：${settings.internshipDuration || '未填写'}`,
+          `希望拓展方向：${settings.growthDirection || '未填写'}`,
+          `允许提到 AI 工具经验：${settings.mentionAiToolsInGreeting ? '是，但仅限简历真实出现' : '否'}`,
           '简历：',
           truncate(settings.resumeText, 10_000),
           '岗位信息与 JD：',
@@ -244,9 +255,7 @@ export async function enhanceJobWithAi(
     ...review,
     greetingOptions: aiGreetingOptions,
   };
-  const recommended =
-    aiGreetings.find((option) => option.id === 'evidence' && /\d/u.test(option.text)) ??
-    aiGreetings[0];
+  const recommended = aiGreetings.find((option) => option.id === 'match') ?? aiGreetings[0];
   const finalScore = calculateRankingScore({
     resumeScore: review.score,
     companyScore: job.companyAssessment.score,

@@ -22,6 +22,10 @@ export const DEFAULT_SETTINGS: ScreeningSettings = {
   tavilyApiKey: '',
   companyTrustThreshold: 70,
   replyNotificationsEnabled: true,
+  weeklyAvailabilityDays: 4,
+  internshipDuration: '3-6个月',
+  growthDirection: 'Java/Vue前后端开发',
+  mentionAiToolsInGreeting: true,
 };
 
 export function createDefaultState(): AppState {

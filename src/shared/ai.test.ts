@@ -25,7 +25,7 @@ describe('AI review parsing', () => {
     expect(result.evidence).toEqual(['SQL', '用户增长']);
     expect(result.greetingOptions).toHaveLength(1);
     expect(result.greetingOptions[0]?.text).toBe(
-      '您好，我看到公司岗位，我SQL经验与岗位挺合适，想聊聊。',
+      '您好，我看到贵司岗位，我SQL经验与岗位匹配度较高，期望有机会聊聊。',
     );
   });
 

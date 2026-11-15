@@ -285,6 +285,55 @@ export function SetupStep({
         </label>
       </div>
 
+      <details className="settings-group" open>
+        <summary>
+          <FileText aria-hidden="true" size={17} />
+          沟通信息
+          <span>用于 AI 自荐文案</span>
+        </summary>
+        <div className="settings-group__body">
+          <div className="form-grid">
+            <label className="field">
+              <span className="field__label">每周可到岗天数</span>
+              <input
+                type="number"
+                min="0"
+                max="7"
+                value={draft.weeklyAvailabilityDays}
+                onChange={(event) => update('weeklyAvailabilityDays', Number(event.target.value))}
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">可实习时长</span>
+              <input
+                value={draft.internshipDuration}
+                onChange={(event) => update('internshipDuration', event.target.value)}
+                placeholder="3-6个月"
+              />
+            </label>
+          </div>
+          <label className="field">
+            <span className="field__label">希望拓展方向</span>
+            <input
+              value={draft.growthDirection}
+              onChange={(event) => update('growthDirection', event.target.value)}
+              placeholder="Java/Vue前后端开发"
+            />
+          </label>
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={draft.mentionAiToolsInGreeting}
+              onChange={(event) => update('mentionAiToolsInGreeting', event.target.checked)}
+            />
+            <span>
+              在文案中提到 AI 工具经验
+              <small>仅在简历明确包含 Codex、ChatGPT 等经历时使用</small>
+            </span>
+          </label>
+        </div>
+      </details>
+
       <details className="settings-group" open={draft.aiEnabled}>
         <summary>
           <Bot aria-hidden="true" size={17} />
@@ -427,6 +476,7 @@ export function SetupStep({
               ...draft,
               maxScanPages: Math.max(1, Math.min(30, draft.maxScanPages)),
               maxJobDetails: Math.max(1, Math.min(100, draft.maxJobDetails)),
+              weeklyAvailabilityDays: Math.max(0, Math.min(7, draft.weeklyAvailabilityDays)),
               maxDailyMessages: Math.max(1, Math.min(50, draft.maxDailyMessages)),
               sendIntervalSeconds: Math.max(10, Math.min(300, draft.sendIntervalSeconds)),
             });

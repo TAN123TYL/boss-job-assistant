@@ -76,7 +76,7 @@ export function screenJob(
     });
   }
 
-  const greetings = generateGreetings(draft, profile, matchResult);
+  const greetings = generateGreetings(draft, profile, matchResult, settings);
   const recommended =
     greetings.options.find((option) => option.id === greetings.recommendedId) ??
     greetings.options[0];

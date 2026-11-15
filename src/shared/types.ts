@@ -1,4 +1,4 @@
-export const APP_SCHEMA_VERSION = 4;
+export const APP_SCHEMA_VERSION = 5;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'skipped';
 export type ExecutionStatus =
@@ -34,6 +34,10 @@ export interface ScreeningSettings {
   tavilyApiKey: string;
   companyTrustThreshold: number;
   replyNotificationsEnabled: boolean;
+  weeklyAvailabilityDays: number;
+  internshipDuration: string;
+  growthDirection: string;
+  mentionAiToolsInGreeting: boolean;
 }
 
 export interface CandidateProfile {
