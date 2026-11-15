@@ -235,3 +235,48 @@ export function mergeScreenedJobs(
     ...mergedScreened,
   ];
 }
+
+const REEVALUATABLE_STAGES = new Set<JobRecord['stage']>([
+  'resume_rejected',
+  'city_rejected',
+  'company_rejected',
+  'ai_rejected',
+]);
+
+export function canReevaluateRejectedJob(job: JobRecord): boolean {
+  return (
+    REEVALUATABLE_STAGES.has(job.stage) &&
+    job.approvalStatus === 'pending' &&
+    job.executionStatus !== 'sent'
+  );
+}
+
+export function jobRecordToDraft(job: JobRecord): BossJobDraft {
+  return {
+    url: job.sourceUrl,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    salary: job.salary,
+    tags: job.tags,
+    description: job.description,
+    companySize: job.companySize,
+    financing: job.financing,
+    recruiter: job.recruiter,
+    companyPageText: job.companyPageText,
+    source: job.description ? 'detail' : 'list',
+  };
+}
+
+export function reevaluateStoredJob(
+  job: JobRecord,
+  profile: CandidateProfile,
+  settings: ScreeningSettings,
+  timestamp = new Date().toISOString(),
+): JobRecord {
+  const reevaluated = screenJob(jobRecordToDraft(job), profile, settings, timestamp);
+  return {
+    ...reevaluated,
+    discoveredAt: job.discoveredAt,
+  };
+}

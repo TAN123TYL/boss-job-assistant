@@ -252,6 +252,14 @@ a {
   gap: 12px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .section-heading h2,
 .confirm-modal h2 {
   margin: 2px 0 0;
@@ -1536,5 +1544,14 @@ a {
 
   .review-actions {
     grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .section-actions {
+    justify-content: flex-start;
   }
 }

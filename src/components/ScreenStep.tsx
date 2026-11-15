@@ -1,4 +1,5 @@
-import { BriefcaseBusiness, Building2, MapPin, Radar, ShieldCheck } from 'lucide-react';
+import { BriefcaseBusiness, Building2, MapPin, Radar, RotateCcw, ShieldCheck } from 'lucide-react';
+import { canReevaluateRejectedJob } from '../shared/screening';
 import type { JobRecord } from '../shared/types';
 import { EmptyState } from './EmptyState';
 import { ScoreRing } from './ScoreRing';
@@ -8,10 +9,12 @@ interface ScreenStepProps {
   lastScanAt: string | null;
   busy: boolean;
   onScan: () => Promise<void>;
+  onResetRejected: () => Promise<void>;
 }
 
-export function ScreenStep({ jobs, lastScanAt, busy, onScan }: ScreenStepProps) {
+export function ScreenStep({ jobs, lastScanAt, busy, onScan, onResetRejected }: ScreenStepProps) {
   const readyJobs = jobs.filter((job) => job.stage === 'ready_for_review');
+  const reevaluatableCount = jobs.filter(canReevaluateRejectedJob).length;
   const rejectedJobs = [...jobs]
     .filter((job) => job.stage !== 'ready_for_review')
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
@@ -27,15 +30,26 @@ export function ScreenStep({ jobs, lastScanAt, busy, onScan }: ScreenStepProps) 
           <p className="eyebrow">当前页面</p>
           <h2 id="screen-title">岗位筛选</h2>
         </div>
-        <button
-          className="button button--primary button--compact"
-          type="button"
-          disabled={busy}
-          onClick={() => void onScan()}
-        >
-          <Radar aria-hidden="true" size={16} />
-          {busy ? '扫描中' : '扫描岗位'}
-        </button>
+        <div className="section-actions">
+          <button
+            className="button button--secondary button--compact"
+            type="button"
+            disabled={busy || reevaluatableCount === 0}
+            onClick={() => void onResetRejected()}
+          >
+            <RotateCcw aria-hidden="true" size={15} />
+            重置排除 {reevaluatableCount}
+          </button>
+          <button
+            className="button button--primary button--compact"
+            type="button"
+            disabled={busy}
+            onClick={() => void onScan()}
+          >
+            <Radar aria-hidden="true" size={16} />
+            {busy ? '处理中' : '扫描岗位'}
+          </button>
+        </div>
       </div>
 
       <div className="metrics-grid">

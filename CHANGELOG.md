@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-15
+
+### Added
+
+- Added a safe reset action that re-evaluates previously auto-rejected jobs with
+  the current resume, city, company, AI, and trust rules.
+- Reset keeps approved, skipped, sent, and execution-history records untouched.
+
 ## [0.2.4] - 2026-11-15
 
 ### Fixed

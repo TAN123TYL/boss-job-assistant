@@ -28,7 +28,12 @@ import {
   transitionToRecovered,
   transitionToSending,
 } from '../../shared/queue';
-import { mergeScreenedJobs, screenJob } from '../../shared/screening';
+import {
+  canReevaluateRejectedJob,
+  mergeScreenedJobs,
+  reevaluateStoredJob,
+  screenJob,
+} from '../../shared/screening';
 import { loadAppState, saveAppState } from '../../shared/storage';
 import type {
   AppState,
@@ -179,6 +184,64 @@ export function App() {
     });
   };
 
+  const applyExternalChecks = async (
+    jobs: JobRecord[],
+    settings: ScreeningSettings,
+  ): Promise<{
+    jobs: JobRecord[];
+    aiFailures: number;
+    researchFailures: number;
+  }> => {
+    let checkedJobs = jobs;
+    let aiFailures = 0;
+    let researchFailures = 0;
+    const candidates = checkedJobs
+      .filter((job) => job.stage === 'ready_for_review' && job.approvalStatus === 'pending')
+      .sort((left, right) => right.finalScore - left.finalScore)
+      .slice(0, 12);
+
+    if (settings.aiEnabled) {
+      for (const candidate of candidates) {
+        try {
+          const enhanced = await enhanceJobWithAi(candidate, settings);
+          checkedJobs = checkedJobs.map((job) => (job.id === candidate.id ? enhanced : job));
+        } catch {
+          aiFailures += 1;
+        }
+      }
+    }
+
+    if (settings.companyResearchEnabled) {
+      for (const candidate of checkedJobs.filter(
+        (job) => job.stage === 'ready_for_review' && job.approvalStatus === 'pending',
+      )) {
+        try {
+          const researched = await researchCompanyWithAi(candidate, settings);
+          checkedJobs = checkedJobs.map((job) => (job.id === candidate.id ? researched : job));
+        } catch (error) {
+          researchFailures += 1;
+          const message = error instanceof Error ? error.message : '公司全网核验失败';
+          checkedJobs = checkedJobs.map((job) =>
+            job.id === candidate.id
+              ? {
+                  ...job,
+                  stage: 'company_rejected' as const,
+                  companyAssessment: {
+                    ...job.companyAssessment,
+                    trustDecision: 'unverified' as const,
+                    aiSummary: message,
+                  },
+                  rejectionReasons: [`公司全网核验失败，未进入待投递队列：${message}`],
+                }
+              : job,
+          );
+        }
+      }
+    }
+
+    return { jobs: checkedJobs, aiFailures, researchFailures };
+  };
+
   const scanJobs = async () => {
     if (!state) {
       return;
@@ -221,63 +284,22 @@ export function App() {
 
       const profile = buildCandidateProfile(state.settings);
       const scannedAt = new Date().toISOString();
-      let screenedJobs = response.payload.drafts.map((draft) =>
+      const screenedJobs = response.payload.drafts.map((draft) =>
         screenJob(draft, profile, state.settings, scannedAt),
       );
-      let aiFailures = 0;
-      let researchFailures = 0;
-
-      const candidates = screenedJobs
-        .filter((job) => job.stage === 'ready_for_review')
-        .sort((left, right) => right.finalScore - left.finalScore)
-        .slice(0, 12);
-
-      if (state.settings.aiEnabled) {
-        for (const candidate of candidates) {
-          try {
-            const enhanced = await enhanceJobWithAi(candidate, state.settings);
-            screenedJobs = screenedJobs.map((job) => (job.id === candidate.id ? enhanced : job));
-          } catch {
-            aiFailures += 1;
-          }
-        }
-      }
-
-      if (state.settings.companyResearchEnabled) {
-        for (const candidate of screenedJobs.filter((job) => job.stage === 'ready_for_review')) {
-          try {
-            const researched = await researchCompanyWithAi(candidate, state.settings);
-            screenedJobs = screenedJobs.map((job) => (job.id === candidate.id ? researched : job));
-          } catch (error) {
-            researchFailures += 1;
-            const message = error instanceof Error ? error.message : '公司全网核验失败';
-            screenedJobs = screenedJobs.map((job) =>
-              job.id === candidate.id
-                ? {
-                    ...job,
-                    stage: 'company_rejected' as const,
-                    companyAssessment: {
-                      ...job.companyAssessment,
-                      trustDecision: 'unverified' as const,
-                      aiSummary: message,
-                    },
-                    rejectionReasons: [`公司全网核验失败，未进入待投递队列：${message}`],
-                  }
-                : job,
-            );
-          }
-        }
-      }
+      const checked = await applyExternalChecks(screenedJobs, state.settings);
+      const enhancedJobs = checked.jobs;
+      const { aiFailures, researchFailures } = checked;
 
       const nextState: AppState = {
         ...state,
-        jobs: mergeScreenedJobs(state.jobs, screenedJobs),
+        jobs: mergeScreenedJobs(state.jobs, enhancedJobs),
         lastScanAt: scannedAt,
       };
 
       await persist(nextState);
       setPageStatus(response.payload.page);
-      const readyCount = screenedJobs.filter((job) => job.stage === 'ready_for_review').length;
+      const readyCount = enhancedJobs.filter((job) => job.stage === 'ready_for_review').length;
       const notes = [
         `加载 ${response.payload.pagesScanned} 轮`,
         `去重 ${response.payload.duplicatesSkipped} 个`,
@@ -304,6 +326,81 @@ export function App() {
       setNotice({
         kind: 'error',
         message: error instanceof Error ? error.message : '扫描岗位失败',
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const resetRejectedJobs = async () => {
+    if (!state) {
+      return;
+    }
+
+    const candidates = state.jobs.filter(canReevaluateRejectedJob);
+    if (candidates.length === 0) {
+      setNotice({
+        kind: 'info',
+        message: '没有可重置的历史排除岗位',
+      });
+      return;
+    }
+
+    if (
+      state.settings.companyResearchEnabled &&
+      (!state.settings.aiEnabled ||
+        !state.settings.aiApiKey.trim() ||
+        !state.settings.tavilyApiKey.trim())
+    ) {
+      setNotice({
+        kind: 'error',
+        message: '公司全网核验需要同时启用 AI 并配置 AI Key 和 Tavily Key',
+      });
+      return;
+    }
+
+    setBusyAction('scan');
+    setNotice({
+      kind: 'info',
+      message: `正在用当前规则重新评估 ${candidates.length} 个历史排除岗位`,
+    });
+
+    try {
+      const profile = buildCandidateProfile(state.settings);
+      const timestamp = new Date().toISOString();
+      const candidateIds = new Set(candidates.map((job) => job.id));
+      const reevaluated = state.jobs.map((job) =>
+        canReevaluateRejectedJob(job)
+          ? reevaluateStoredJob(job, profile, state.settings, timestamp)
+          : job,
+      );
+      const checked = await applyExternalChecks(reevaluated, state.settings);
+      const recovered = checked.jobs.filter(
+        (job) => candidateIds.has(job.id) && job.stage === 'ready_for_review',
+      ).length;
+      await persist({
+        ...state,
+        jobs: checked.jobs,
+      });
+
+      const notes = [`重新评估 ${candidates.length} 个岗位`, `${recovered} 个恢复为待确认`];
+      if (checked.aiFailures > 0) {
+        notes.push(`${checked.aiFailures} 个 AI 复核失败`);
+      }
+      if (checked.researchFailures > 0) {
+        notes.push(`${checked.researchFailures} 个公司核验失败`);
+      }
+      setNotice({
+        kind: recovered > 0 ? 'success' : 'info',
+        message: notes.join('，'),
+      });
+      if (recovered > 0) {
+        setActiveTab('review');
+      }
+    } catch (error) {
+      setNotice({
+        kind: 'error',
+        message: error instanceof Error ? error.message : '历史岗位重新评估失败',
       });
     } finally {
       setBusyAction(null);
@@ -573,6 +670,7 @@ export function App() {
             lastScanAt={state.lastScanAt}
             busy={busyAction === 'scan'}
             onScan={scanJobs}
+            onResetRejected={resetRejectedJobs}
           />
         ) : null}
         {activeTab === 'review' ? (
@@ -590,7 +688,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.2.4</span>
+        <span>v0.2.5</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

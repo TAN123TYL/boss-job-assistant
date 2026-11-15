@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from './defaults';
 import { buildCandidateProfile } from './matching';
-import { mergeScreenedJobs, screenJob } from './screening';
+import {
+  canReevaluateRejectedJob,
+  mergeScreenedJobs,
+  reevaluateStoredJob,
+  screenJob,
+} from './screening';
 import type { BossJobDraft, ScreeningSettings } from './types';
 
 const settings: ScreeningSettings = {
@@ -103,5 +108,34 @@ describe('screening pipeline', () => {
 
     expect(merged[0]?.approvalStatus).toBe('approved');
     expect(merged[0]?.selectedGreeting).toBe('编辑后的沟通内容');
+  });
+
+  it('re-evaluates a previously rejected job with current rules', () => {
+    const profile = buildCandidateProfile(settings);
+    const rejected = screenJob(
+      createJob(),
+      profile,
+      {
+        ...settings,
+        targetTitles: 'Java 后端',
+        excludedKeywords: '数据分析',
+      },
+      '2026-11-14T00:00:00.000Z',
+    );
+    const restored = reevaluateStoredJob(rejected, profile, settings, '2026-11-15T00:00:00.000Z');
+
+    expect(rejected.stage).toBe('resume_rejected');
+    expect(canReevaluateRejectedJob(rejected)).toBe(true);
+    expect(restored.stage).toBe('ready_for_review');
+    expect(restored.discoveredAt).toBe(rejected.discoveredAt);
+  });
+
+  it('does not re-evaluate jobs already approved, skipped, or sent', () => {
+    const profile = buildCandidateProfile(settings);
+    const rejected = screenJob(createJob({ location: '北京' }), profile, settings);
+
+    expect(canReevaluateRejectedJob({ ...rejected, approvalStatus: 'approved' })).toBe(false);
+    expect(canReevaluateRejectedJob({ ...rejected, approvalStatus: 'skipped' })).toBe(false);
+    expect(canReevaluateRejectedJob({ ...rejected, executionStatus: 'sent' })).toBe(false);
   });
 });
