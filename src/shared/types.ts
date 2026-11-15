@@ -196,6 +196,18 @@ export interface BossReplySignal {
   messageUrl: string;
 }
 
+export interface ScanProgress {
+  phase: 'collecting' | 'hydrating' | 'loading_more' | 'analyzing' | 'finishing';
+  message: string;
+  current: number;
+  total: number;
+}
+
+export interface ScanProgressMessage {
+  type: 'BOSS_SCAN_PROGRESS';
+  progress: ScanProgress;
+}
+
 export interface AppBackup {
   format: 'boss-job-assistant-backup';
   backupVersion: number;
@@ -225,6 +237,9 @@ export type ContentRequest =
     }
   | {
       type: 'BOSS_CHECK_REPLIES';
+    }
+  | {
+      type: 'BOSS_CANCEL_SCAN';
     };
 
 export type ContentResponse =
@@ -243,6 +258,10 @@ export type ContentResponse =
   | {
       ok: true;
       replies: BossReplySignal;
+    }
+  | {
+      ok: true;
+      cancelled: boolean;
     }
   | {
       ok: false;

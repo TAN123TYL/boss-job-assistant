@@ -1,6 +1,11 @@
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
-import type { ContentRequest, ContentResponse } from '../../shared/types';
+import type {
+  ContentRequest,
+  ContentResponse,
+  ScanProgress,
+  ScanProgressMessage,
+} from '../../shared/types';
 import {
   getPageStatus,
   openJob,
@@ -8,6 +13,16 @@ import {
   scanReplySignals,
   sendGreeting,
 } from './adapter';
+
+let cancelScanRequested = false;
+
+function publishScanProgress(progress: ScanProgress): void {
+  const message: ScanProgressMessage = {
+    type: 'BOSS_SCAN_PROGRESS',
+    progress,
+  };
+  void browser.runtime.sendMessage(message).catch(() => undefined);
+}
 
 function isContentRequest(value: unknown): value is ContentRequest {
   if (!value || typeof value !== 'object' || !('type' in value)) {
@@ -20,6 +35,7 @@ function isContentRequest(value: unknown): value is ContentRequest {
     'BOSS_OPEN_JOB',
     'BOSS_SEND_GREETING',
     'BOSS_CHECK_REPLIES',
+    'BOSS_CANCEL_SCAN',
   ].includes(String(value.type));
 }
 
@@ -31,10 +47,15 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
         status: getPageStatus(),
       };
     case 'BOSS_SCAN_JOBS': {
+      cancelScanRequested = false;
       const result = await scanJobsWithInfiniteScroll(
         request.maxPages,
         request.hydrateDetails,
         request.maxDetails,
+        {
+          onProgress: publishScanProgress,
+          shouldCancel: () => cancelScanRequested,
+        },
       );
       return {
         ok: true,
@@ -63,6 +84,18 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
       return {
         ok: true,
         replies: scanReplySignals(),
+      };
+    case 'BOSS_CANCEL_SCAN':
+      cancelScanRequested = true;
+      publishScanProgress({
+        phase: 'finishing',
+        message: '正在停止扫描并保留已读取结果',
+        current: 0,
+        total: 0,
+      });
+      return {
+        ok: true,
+        cancelled: true,
       };
   }
 }

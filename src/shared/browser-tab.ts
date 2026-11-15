@@ -1,7 +1,25 @@
 import { browser } from 'wxt/browser';
 import type { ContentRequest, ContentResponse } from './types';
 
-export async function sendContentRequest(request: ContentRequest): Promise<ContentResponse> {
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+export async function sendContentRequest(
+  request: ContentRequest,
+  timeoutMs = 30_000,
+): Promise<ContentResponse> {
   const tabs = await browser.tabs.query({
     active: true,
     lastFocusedWindow: true,
@@ -17,7 +35,11 @@ export async function sendContentRequest(request: ContentRequest): Promise<Conte
   }
 
   try {
-    return await browser.tabs.sendMessage(tab.id, request);
+    return await withTimeout(
+      browser.tabs.sendMessage(tab.id, request),
+      timeoutMs,
+      '页面操作超时，已停止等待',
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     if (/Receiving end does not exist|Could not establish connection/iu.test(message)) {

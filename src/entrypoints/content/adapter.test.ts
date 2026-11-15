@@ -139,10 +139,14 @@ describe('BOSS page adapter', () => {
     };
     window.addEventListener('scroll', onScroll, { once: true });
 
-    const result = await scanJobsWithInfiniteScroll(2);
+    const progressMessages: string[] = [];
+    const result = await scanJobsWithInfiniteScroll(2, false, 0, {
+      onProgress: (progress) => progressMessages.push(progress.message),
+    });
 
     expect(result.drafts.map((job) => job.title)).toEqual(['数据分析师', '商业分析师']);
     expect(result.pagesScanned).toBe(2);
+    expect(progressMessages).toContain('正在向下滚动，等待 Boss 加载新岗位');
   });
 
   it('opens a job card and merges the full JD from the detail panel', async () => {
@@ -170,6 +174,7 @@ describe('BOSS page adapter', () => {
         '负责自动化测试平台建设，使用 Python、SQL 和 Linux，参与接口测试、缺陷管理和回归验证。';
     });
 
+    const progressMessages: string[] = [];
     const result = await hydrateDraftDetails(
       [
         {
@@ -187,9 +192,50 @@ describe('BOSS page adapter', () => {
         },
       ],
       1,
+      {
+        onProgress: (progress) => progressMessages.push(progress.message),
+      },
     );
 
+    expect(progressMessages[0]).toContain('正在读取岗位 JD');
     expect(result.detailsHydrated).toBe(1);
     expect(result.drafts[0]?.description).toContain('自动化测试平台建设');
+  });
+  it('stops JD hydration before clicking when the user cancels', async () => {
+    document.body.innerHTML = `
+      <ul class="rec-job-list">
+        <li class="job-card-box">
+          <a href="https://www.zhipin.com/job_detail/cancel-test.html">
+            <span class="job-name">自动化测试工程师</span>
+          </a>
+        </li>
+      </ul>
+    `;
+    const link = document.querySelector<HTMLAnchorElement>('a[href*="cancel-test"]');
+    const clickHandler = vi.fn();
+    link?.addEventListener('click', clickHandler);
+
+    const result = await hydrateDraftDetails(
+      [
+        {
+          url: 'https://www.zhipin.com/job_detail/cancel-test.html',
+          title: '自动化测试工程师',
+          company: '示例公司',
+          location: '重庆',
+          salary: '',
+          tags: [],
+          description: '',
+          companySize: '',
+          financing: '',
+          recruiter: '',
+          source: 'list',
+        },
+      ],
+      1,
+      { shouldCancel: () => true },
+    );
+
+    expect(clickHandler).not.toHaveBeenCalled();
+    expect(result.detailsHydrated).toBe(0);
   });
 });

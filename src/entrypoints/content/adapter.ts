@@ -4,6 +4,7 @@ import type {
   BossReplySignal,
   BossScanPayload,
   BossSendResult,
+  ScanProgress,
 } from '../../shared/types';
 import { normalizeWhitespace, truncate, unique } from '../../shared/utils';
 
@@ -16,6 +17,11 @@ const ACTIVE_CARD_SELECTOR = [
 ].join(', ');
 const VERIFICATION_TEXT_PATTERN =
   /(安全验证|请完成验证|拖动滑块|验证码|访问异常|网络环境存在风险|人机验证)/u;
+
+interface ScanOptions {
+  onProgress?: (progress: ScanProgress) => void;
+  shouldCancel?: () => boolean;
+}
 
 function firstText(root: ParentNode, selectors: string[]): string {
   for (const selector of selectors) {
@@ -244,10 +250,14 @@ function detailMatchesDraft(draft: BossJobDraft, detail: Partial<BossJobDraft>):
 async function waitForDraftDetail(
   draft: BossJobDraft,
   previousDescription: string,
+  shouldCancel: () => boolean,
 ): Promise<Partial<BossJobDraft> | null> {
   const deadline = Date.now() + 3_500;
 
   while (Date.now() < deadline) {
+    if (shouldCancel()) {
+      return null;
+    }
     await wait(180);
     const detail = extractVisibleDetail();
     const description = normalizeWhitespace(detail.description ?? '');
@@ -265,6 +275,7 @@ async function waitForDraftDetail(
 export async function hydrateDraftDetails(
   drafts: BossJobDraft[],
   maximumDetails: number,
+  options: ScanOptions = {},
 ): Promise<{
   drafts: BossJobDraft[];
   detailsHydrated: number;
@@ -274,8 +285,13 @@ export async function hydrateDraftDetails(
   let attempts = 0;
   let detailsHydrated = 0;
   const hydratedDrafts: BossJobDraft[] = [];
+  const shouldCancel = options.shouldCancel ?? (() => false);
 
   for (const draft of drafts) {
+    if (shouldCancel()) {
+      hydratedDrafts.push(draft);
+      continue;
+    }
     if (attempts >= limit || draft.description.length >= 80) {
       hydratedDrafts.push(draft);
       continue;
@@ -288,6 +304,12 @@ export async function hydrateDraftDetails(
     }
 
     attempts += 1;
+    options.onProgress?.({
+      phase: 'hydrating',
+      message: `正在读取岗位 JD：${draft.title}`,
+      current: attempts,
+      total: limit,
+    });
     const previousDescription = normalizeWhitespace(extractVisibleDetail().description ?? '');
     const target = link.getAttribute('target');
     link.removeAttribute('target');
@@ -296,7 +318,7 @@ export async function hydrateDraftDetails(
       link.setAttribute('target', target);
     }
 
-    const detail = await waitForDraftDetail(draft, previousDescription);
+    const detail = await waitForDraftDetail(draft, previousDescription, shouldCancel);
     if (detail?.description) {
       detailsHydrated += 1;
       hydratedDrafts.push(mergeDraft(draft, detail));
@@ -417,10 +439,16 @@ function scrollJobListToEnd(): void {
   document.dispatchEvent(new Event('scroll'));
 }
 
-async function waitForNewJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
+async function waitForNewJobs(
+  knownIds: Set<string>,
+  shouldCancel: () => boolean,
+): Promise<BossJobDraft[]> {
   const deadline = Date.now() + 7_000;
 
   while (Date.now() < deadline) {
+    if (shouldCancel()) {
+      return [];
+    }
     await wait(400);
     if (detectVerificationPage()) {
       return [];
@@ -435,7 +463,14 @@ async function waitForNewJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
   return [];
 }
 
-async function loadMoreJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
+async function loadMoreJobs(knownIds: Set<string>, options: ScanOptions): Promise<BossJobDraft[]> {
+  const shouldCancel = options.shouldCancel ?? (() => false);
+  options.onProgress?.({
+    phase: 'loading_more',
+    message: '正在向下滚动，等待 Boss 加载新岗位',
+    current: 0,
+    total: 0,
+  });
   const nextControl = findNextPageControl();
   if (nextControl) {
     const before = currentJobIdentities();
@@ -443,6 +478,9 @@ async function loadMoreJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
     nextControl.click();
     const deadline = Date.now() + 7_000;
     while (Date.now() < deadline) {
+      if (shouldCancel()) {
+        return [];
+      }
       await wait(400);
       const current = currentJobIdentities();
       if ([...current].some((identity) => !before.has(identity))) {
@@ -452,8 +490,11 @@ async function loadMoreJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
   }
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (shouldCancel()) {
+      return [];
+    }
     scrollJobListToEnd();
-    const drafts = await waitForNewJobs(knownIds);
+    const drafts = await waitForNewJobs(knownIds, shouldCancel);
     if (drafts.length > 0) {
       return drafts;
     }
@@ -467,6 +508,7 @@ export async function scanJobsWithInfiniteScroll(
   requestedRounds: number,
   hydrateDetails = false,
   requestedDetails = 0,
+  options: ScanOptions = {},
 ): Promise<Omit<BossScanPayload, 'page'>> {
   const maximumRounds = Math.max(1, Math.min(30, Math.round(requestedRounds)));
   let remainingDetails = Math.max(0, Math.min(100, Math.round(requestedDetails)));
@@ -475,13 +517,24 @@ export async function scanJobsWithInfiniteScroll(
   let pagesScanned = 0;
   let detailsHydrated = 0;
   let stoppedReason = '';
+  const shouldCancel = options.shouldCancel ?? (() => false);
 
   for (let round = 0; round < maximumRounds; round += 1) {
+    if (shouldCancel()) {
+      stoppedReason = '用户已停止扫描';
+      break;
+    }
     if (detectVerificationPage()) {
       stoppedReason = '检测到验证页面，已停止滚动加载';
       break;
     }
 
+    options.onProgress?.({
+      phase: 'collecting',
+      message: `正在读取第 ${round + 1} 轮岗位列表`,
+      current: round + 1,
+      total: maximumRounds,
+    });
     let visibleDrafts = scanCurrentPage();
     pagesScanned += 1;
     if (visibleDrafts.length === 0 && collectedByJob.size === 0) {
@@ -490,7 +543,7 @@ export async function scanJobsWithInfiniteScroll(
     }
 
     if (hydrateDetails && remainingDetails > 0) {
-      const hydration = await hydrateDraftDetails(visibleDrafts, remainingDetails);
+      const hydration = await hydrateDraftDetails(visibleDrafts, remainingDetails, options);
       visibleDrafts = hydration.drafts;
       detailsHydrated += hydration.detailsHydrated;
       remainingDetails -= hydration.detailsAttempted;
@@ -507,7 +560,11 @@ export async function scanJobsWithInfiniteScroll(
       break;
     }
 
-    const moreDrafts = await loadMoreJobs(new Set(collectedByJob.keys()));
+    if (shouldCancel()) {
+      stoppedReason = '用户已停止扫描';
+      break;
+    }
+    const moreDrafts = await loadMoreJobs(new Set(collectedByJob.keys()), options);
     if (moreDrafts.length === 0) {
       stoppedReason = detectVerificationPage()
         ? '滚动加载后出现验证页面'
@@ -516,6 +573,12 @@ export async function scanJobsWithInfiniteScroll(
     }
   }
 
+  options.onProgress?.({
+    phase: 'finishing',
+    message: '岗位列表读取完成，准备执行匹配',
+    current: pagesScanned,
+    total: maximumRounds,
+  });
   const drafts = [...collectedByJob.values()];
   return {
     drafts,

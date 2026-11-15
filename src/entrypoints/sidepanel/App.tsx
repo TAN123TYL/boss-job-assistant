@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BriefcaseBusiness,
   ClipboardCheck,
@@ -8,6 +8,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
+import { browser } from 'wxt/browser';
 import { InlineNotice } from '../../components/InlineNotice';
 import type { Notice } from '../../components/InlineNotice';
 import { QueueStep } from '../../components/QueueStep';
@@ -41,6 +42,7 @@ import type {
   BossSendResult,
   ExecutionLog,
   JobRecord,
+  ScanProgress,
   ScreeningSettings,
 } from '../../shared/types';
 import { createId } from '../../shared/utils';
@@ -106,6 +108,9 @@ export function App() {
   const [pageStatus, setPageStatus] = useState<BossPageStatus | null>(null);
   const [busyAction, setBusyAction] = useState<'scan' | 'execute' | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
+  const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
+  const cancelScanRef = useRef(false);
 
   const refreshPageStatus = async () => {
     try {
@@ -130,6 +135,25 @@ export function App() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleProgress = (message: unknown) => {
+      if (
+        message &&
+        typeof message === 'object' &&
+        'type' in message &&
+        message.type === 'BOSS_SCAN_PROGRESS' &&
+        'progress' in message
+      ) {
+        setScanProgress(message.progress as ScanProgress);
+      }
+    };
+
+    browser.runtime.onMessage.addListener(handleProgress);
+    return () => {
+      browser.runtime.onMessage.removeListener(handleProgress);
     };
   }, []);
 
@@ -201,7 +225,20 @@ export function App() {
       .slice(0, 12);
 
     if (settings.aiEnabled) {
-      for (const candidate of candidates) {
+      for (let index = 0; index < candidates.length; index += 1) {
+        if (cancelScanRef.current) {
+          break;
+        }
+        const candidate = candidates[index];
+        if (!candidate) {
+          continue;
+        }
+        setScanProgress({
+          phase: 'analyzing',
+          message: `AI 正在复核岗位：${candidate.title}`,
+          current: index + 1,
+          total: candidates.length,
+        });
         try {
           const enhanced = await enhanceJobWithAi(candidate, settings);
           checkedJobs = checkedJobs.map((job) => (job.id === candidate.id ? enhanced : job));
@@ -212,9 +249,23 @@ export function App() {
     }
 
     if (settings.companyResearchEnabled) {
-      for (const candidate of checkedJobs.filter(
+      const researchCandidates = checkedJobs.filter(
         (job) => job.stage === 'ready_for_review' && job.approvalStatus === 'pending',
-      )) {
+      );
+      for (let index = 0; index < researchCandidates.length; index += 1) {
+        if (cancelScanRef.current) {
+          break;
+        }
+        const candidate = researchCandidates[index];
+        if (!candidate) {
+          continue;
+        }
+        setScanProgress({
+          phase: 'analyzing',
+          message: `正在核验公司：${candidate.company}`,
+          current: index + 1,
+          total: researchCandidates.length,
+        });
         try {
           const researched = await researchCompanyWithAi(candidate, settings);
           checkedJobs = checkedJobs.map((job) => (job.id === candidate.id ? researched : job));
@@ -242,6 +293,25 @@ export function App() {
     return { jobs: checkedJobs, aiFailures, researchFailures };
   };
 
+  const cancelScan = async () => {
+    cancelScanRef.current = true;
+    setScanProgress({
+      phase: 'finishing',
+      message: '正在停止扫描并保留已读取结果',
+      current: 0,
+      total: 0,
+    });
+    setNotice({
+      kind: 'info',
+      message: '停止请求已发送，当前网络请求结束后会保留已有结果',
+    });
+    try {
+      await sendContentRequest({ type: 'BOSS_CANCEL_SCAN' }, 5_000);
+    } catch {
+      // The side-panel cancellation flag still stops AI and company checks.
+    }
+  };
+
   const scanJobs = async () => {
     if (!state) {
       return;
@@ -260,16 +330,27 @@ export function App() {
       return;
     }
 
+    cancelScanRef.current = false;
+    setScanStartedAt(Date.now());
+    setScanProgress({
+      phase: 'collecting',
+      message: '正在连接 Boss 页面并准备扫描',
+      current: 0,
+      total: state.settings.maxScanPages,
+    });
     setBusyAction('scan');
     setNotice(null);
 
     try {
-      const response = await sendContentRequest({
-        type: 'BOSS_SCAN_JOBS',
-        maxPages: state.settings.maxScanPages,
-        hydrateDetails: state.settings.hydrateJobDetails,
-        maxDetails: state.settings.maxJobDetails,
-      });
+      const response = await sendContentRequest(
+        {
+          type: 'BOSS_SCAN_JOBS',
+          maxPages: state.settings.maxScanPages,
+          hydrateDetails: state.settings.hydrateJobDetails,
+          maxDetails: state.settings.maxJobDetails,
+        },
+        5 * 60_000,
+      );
       if (!response.ok) {
         throw new Error(response.error);
       }
@@ -286,12 +367,24 @@ export function App() {
 
       const profile = buildCandidateProfile(state.settings);
       const scannedAt = new Date().toISOString();
+      setScanProgress({
+        phase: 'analyzing',
+        message: '岗位读取完成，正在执行简历匹配',
+        current: 0,
+        total: response.payload.drafts.length,
+      });
       const screenedJobs = response.payload.drafts.map((draft) =>
         screenJob(draft, profile, state.settings, scannedAt),
       );
       const checked = await applyExternalChecks(screenedJobs, state.settings);
       const enhancedJobs = checked.jobs;
       const { aiFailures, researchFailures } = checked;
+      setScanProgress({
+        phase: 'finishing',
+        message: '正在保存筛选结果',
+        current: enhancedJobs.length,
+        total: enhancedJobs.length,
+      });
 
       const nextState: AppState = {
         ...state,
@@ -326,6 +419,8 @@ export function App() {
         setActiveTab('review');
       }
     } catch (error) {
+      cancelScanRef.current = true;
+      void sendContentRequest({ type: 'BOSS_CANCEL_SCAN' }, 5_000).catch(() => undefined);
       setNotice({
         kind: 'error',
         message: error instanceof Error ? error.message : '扫描岗位失败',
@@ -362,6 +457,14 @@ export function App() {
       return;
     }
 
+    cancelScanRef.current = false;
+    setScanStartedAt(Date.now());
+    setScanProgress({
+      phase: 'analyzing',
+      message: `正在重新评估 ${candidates.length} 个历史排除岗位`,
+      current: 0,
+      total: candidates.length,
+    });
     setBusyAction('scan');
     setNotice({
       kind: 'info',
@@ -384,6 +487,12 @@ export function App() {
       await persist({
         ...state,
         jobs: checked.jobs,
+      });
+      setScanProgress({
+        phase: 'finishing',
+        message: '历史岗位重新评估完成',
+        current: candidates.length,
+        total: candidates.length,
       });
 
       const notes = [`重新评估 ${candidates.length} 个岗位`, `${recovered} 个恢复为待确认`];
@@ -674,6 +783,9 @@ export function App() {
             busy={busyAction === 'scan'}
             onScan={scanJobs}
             onResetRejected={resetRejectedJobs}
+            progress={scanProgress}
+            startedAt={scanStartedAt}
+            onCancel={cancelScan}
           />
         ) : null}
         {activeTab === 'review' ? (
@@ -691,7 +803,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.2.6</span>
+        <span>v0.2.7</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-15
+
+### Added
+
+- Added live scan progress with phase, item counts, elapsed time, and a stop
+  action.
+- Added cancellation checks throughout scrolling, JD hydration, AI review, and
+  company research.
+- Added per-JD, scroll-wait, and whole-scan timeouts so the side panel cannot
+  remain on an unexplained processing state indefinitely.
+
 ## [0.2.6] - 2026-11-15
 
 ### Added
