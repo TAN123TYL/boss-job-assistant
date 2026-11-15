@@ -59,4 +59,24 @@ describe('company signal assessment', () => {
 
     expect(result.externalLinks[0]?.url).toContain('%E7%A4%BA%E4%BE%8B');
   });
+
+  it('does not reject a company only because a list card omits metadata', () => {
+    const result = assessCompany(
+      {
+        company: '重庆真实列表科技有限公司',
+        description: '',
+        companySize: '',
+        financing: '',
+        salary: '',
+        tags: ['Python', '自动化测试', '本科'],
+      },
+      55,
+    );
+
+    expect(result.score).toBeGreaterThanOrEqual(55);
+    expect(result.passed).toBe(true);
+    expect(result.risks).toEqual(
+      expect.arrayContaining(['未显示公司规模', '岗位描述过短，职责边界不清晰']),
+    );
+  });
 });

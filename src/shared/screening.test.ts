@@ -70,6 +70,25 @@ describe('screening pipeline', () => {
     expect(result.stage).toBe('company_rejected');
   });
 
+  it('keeps a matching sparse list card for review instead of rejecting missing metadata', () => {
+    const profile = buildCandidateProfile(settings);
+    const result = screenJob(
+      createJob({
+        company: '重庆真实数据科技有限公司',
+        description: '',
+        companySize: '',
+        financing: '',
+        tags: ['SQL', 'Excel', '本科'],
+      }),
+      profile,
+      settings,
+    );
+
+    expect(result.matchResult.passed).toBe(true);
+    expect(result.companyAssessment.passed).toBe(true);
+    expect(result.stage).toBe('ready_for_review');
+  });
+
   it('preserves an approved greeting during a rescan', () => {
     const profile = buildCandidateProfile(settings);
     const first = screenJob(createJob(), profile, settings, '2026-11-14T00:00:00.000Z');

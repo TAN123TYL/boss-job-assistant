@@ -184,6 +184,19 @@ export function App() {
       return;
     }
 
+    if (
+      state.settings.companyResearchEnabled &&
+      (!state.settings.aiEnabled ||
+        !state.settings.aiApiKey.trim() ||
+        !state.settings.tavilyApiKey.trim())
+    ) {
+      setNotice({
+        kind: 'error',
+        message: '公司全网核验需要同时启用 AI 并配置 AI Key 和 Tavily Key',
+      });
+      return;
+    }
+
     setBusyAction('scan');
     setNotice(null);
 
@@ -577,7 +590,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.2.3</span>
+        <span>v0.2.4</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

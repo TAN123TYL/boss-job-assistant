@@ -12,6 +12,10 @@ interface ScreenStepProps {
 
 export function ScreenStep({ jobs, lastScanAt, busy, onScan }: ScreenStepProps) {
   const readyJobs = jobs.filter((job) => job.stage === 'ready_for_review');
+  const rejectedJobs = [...jobs]
+    .filter((job) => job.stage !== 'ready_for_review')
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, 6);
   const resumeRejected = jobs.filter((job) => job.stage === 'resume_rejected').length;
   const cityRejected = jobs.filter((job) => job.stage === 'city_rejected').length;
   const companyRejected = jobs.filter((job) => job.stage === 'company_rejected').length;
@@ -67,7 +71,7 @@ export function ScreenStep({ jobs, lastScanAt, busy, onScan }: ScreenStepProps) 
         <EmptyState
           icon={Radar}
           title="尚无待确认岗位"
-          description="打开 Boss 岗位列表后扫描当前页面。"
+          description="打开 Boss 岗位列表后扫描当前页面，排除原因会显示在下方。"
         />
       ) : (
         <div className="compact-list">
@@ -90,6 +94,26 @@ export function ScreenStep({ jobs, lastScanAt, busy, onScan }: ScreenStepProps) 
             ))}
         </div>
       )}
+
+      {rejectedJobs.length > 0 ? (
+        <div className="rejection-summary">
+          <div className="execution-history__heading">
+            <Radar aria-hidden="true" size={16} />
+            <h3>最近排除原因</h3>
+          </div>
+          {rejectedJobs.map((job) => (
+            <article className="rejection-item" key={job.id}>
+              <div>
+                <strong>
+                  {job.title} · {job.company}
+                </strong>
+                <p>{job.rejectionReasons[0] ?? '未满足当前筛选条件'}</p>
+              </div>
+              <span>{job.stage.replace('_rejected', '')}</span>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

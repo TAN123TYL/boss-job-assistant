@@ -80,4 +80,27 @@ describe('resume matching', () => {
     expect(result.score).toBe(0);
     expect(result.rejectionReasons[0]).toContain('外包');
   });
+
+  it('recognizes software testing skills from a testing resume', () => {
+    const testingProfile = buildCandidateProfile({
+      ...settings,
+      resumeText:
+        '本科，2027届。掌握Python、SQL、Linux，具备功能测试、自动化测试、接口测试、回归测试和禅道缺陷管理经验。',
+      targetTitles: '自动化测试 / 测试开发 / 功能测试',
+    });
+
+    expect(testingProfile.targetTitles).toEqual(['自动化测试', '测试开发', '功能测试']);
+    expect(testingProfile.skills).toEqual(
+      expect.arrayContaining([
+        'python',
+        'sql',
+        'linux',
+        '功能测试',
+        '自动化测试',
+        '接口测试',
+        '回归测试',
+        '禅道',
+      ]),
+    );
+  });
 });

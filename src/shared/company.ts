@@ -41,7 +41,7 @@ export function assessCompany(
   >,
   minimumCompanyScore: number,
 ): CompanyAssessment {
-  let score = 28;
+  let score = 45;
   const positives: string[] = [];
   const risks: string[] = [];
   const combinedText = normalizeWhitespace(
@@ -49,26 +49,26 @@ export function assessCompany(
   );
 
   if (job.company.trim().length >= 4) {
-    score += 8;
+    score += 10;
     positives.push('公司名称已展示');
   } else {
     risks.push('公司名称信息不足');
   }
 
   if (job.companySize.trim()) {
-    score += 12;
+    score += 8;
     positives.push(`公司规模：${job.companySize}`);
   } else {
     risks.push('未显示公司规模');
   }
 
   if (job.financing.trim()) {
-    score += 8;
+    score += 7;
     positives.push(`融资信息：${job.financing}`);
   }
 
   if (job.description.length >= 120) {
-    score += 14;
+    score += 12;
     positives.push('岗位描述包含较完整的职责信息');
   } else if (job.description.length >= 50) {
     score += 6;
@@ -78,7 +78,7 @@ export function assessCompany(
   }
 
   if (job.tags.length >= 3) {
-    score += 6;
+    score += 4;
     positives.push('岗位标签较完整');
   }
 

@@ -16,7 +16,7 @@ export function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 export function splitList(value: string): string[] {
-  return unique(value.split(/[\n,，、;；|]+/u));
+  return unique(value.split(/[\n,，、;；|/／]+/u));
 }
 
 export function hashString(value: string): string {

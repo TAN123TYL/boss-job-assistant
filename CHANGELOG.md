@@ -7,6 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-15
+
+### Fixed
+
+- Prevented sparse Boss recommendation cards from being rejected solely because
+  company size, financing, and full job descriptions are absent.
+- Added software-testing skills and testing-tool keywords to resume matching.
+- Allowed slash-separated target titles such as
+  `自动化测试 / 测试开发 / 功能测试`.
+- Added visible rejection reasons to the screening page for diagnosing zero-match
+  scans.
+
 ## [0.2.3] - 2026-11-14
 
 ### Changed
