@@ -140,6 +140,46 @@ export function parseAiReview(value: unknown, reviewedAt = new Date().toISOStrin
   };
 }
 
+async function generateAiGreetings(
+  job: JobRecord,
+  settings: ScreeningSettings,
+  jobContext: string,
+  fetchImpl: FetchLike,
+): Promise<GreetingOption[]> {
+  const response = await requestAiJson(
+    settings,
+    [
+      {
+        role: 'system',
+        content:
+          '你正在代求职者给招聘 HR 发第一条消息。必须像微信聊天一样自然，短句、口语化、不说空话，只使用简历和 JD 中真实存在的信息。只返回 JSON。',
+      },
+      {
+        role: 'user',
+        content: [
+          '根据下面的简历和岗位 JD 写 3 条不同的开场沟通文案。',
+          '输出 JSON：{"greetings":{"match":"","evidence":"","question":""}}',
+          '每条 40-90 个汉字，都以“您好”开头，只突出一个最相关的真实优势，结尾自然问一个问题。',
+          '不要使用“关注到、贵司、进一步沟通、匹配度较高、期望有机会、该岗位”等书面套话。',
+          'match：直接说明为什么合适；evidence：引用简历中的真实项目或成果；question：围绕 JD 真实职责提一个问题。',
+          '禁止编造经历、技术、数字、学历、薪资或到岗时间。',
+          '简历：',
+          truncate(settings.resumeText, 10_000),
+          '岗位 JD：',
+          jobContext,
+          `公司：${job.company}`,
+          `岗位：${job.title}`,
+        ].join('\n'),
+      },
+    ],
+    fetchImpl,
+  );
+  const record =
+    response && typeof response === 'object' ? (response as Record<string, unknown>) : {};
+
+  return greetingOptions(record.greetings);
+}
+
 export async function enhanceJobWithAi(
   job: JobRecord,
   settings: ScreeningSettings,
@@ -150,6 +190,18 @@ export async function enhanceJobWithAi(
   }
 
   const reviewedAt = new Date().toISOString();
+  const jobContext = truncate(
+    [
+      `公司介绍：${job.companyPageText}`,
+      `岗位名称：${job.title}`,
+      `公司：${job.company}`,
+      `地点：${job.location}`,
+      `薪资：${job.salary}`,
+      `标签：${job.tags.join('、')}`,
+      `岗位 JD：${job.description}`,
+    ].join('\n'),
+    10_000,
+  );
   const response = await requestAiJson(
     settings,
     [
@@ -168,13 +220,8 @@ export async function enhanceJobWithAi(
           '避免使用“关注到、进一步沟通、匹配度较高、贵司、该岗位、期望有机会”等正式套话，优先使用“看到、聊聊、方便吗、想问问”。',
           '简历：',
           truncate(settings.resumeText, 10_000),
-          '岗位：',
-          truncate(
-            [job.title, job.company, job.location, job.salary, ...job.tags, job.description].join(
-              '\n',
-            ),
-            8_000,
-          ),
+          '岗位信息与 JD：',
+          jobContext,
           `本地规则分：${job.matchResult.score}`,
         ].join('\n'),
       },
@@ -183,9 +230,20 @@ export async function enhanceJobWithAi(
   );
 
   const review = parseAiReview(response, reviewedAt);
+  let aiGreetingOptions = review.greetingOptions;
+  if (aiGreetingOptions.length === 0 && settings.aiEnabled) {
+    try {
+      aiGreetingOptions = await generateAiGreetings(job, settings, jobContext, fetchImpl);
+    } catch {
+      // Keep the deterministic local greetings as a fallback.
+    }
+  }
   const rejected = review.decision === 'reject' || review.score < settings.minimumResumeScore;
-  const aiGreetings =
-    review.greetingOptions.length > 0 ? review.greetingOptions : job.greetingOptions;
+  const aiGreetings = aiGreetingOptions.length > 0 ? aiGreetingOptions : job.greetingOptions;
+  const updatedReview = {
+    ...review,
+    greetingOptions: aiGreetingOptions,
+  };
   const recommended =
     aiGreetings.find((option) => option.id === 'evidence' && /\d/u.test(option.text)) ??
     aiGreetings[0];
@@ -199,7 +257,7 @@ export async function enhanceJobWithAi(
     ...job,
     stage: rejected ? 'ai_rejected' : 'ready_for_review',
     finalScore,
-    aiReview: review,
+    aiReview: updatedReview,
     greetingOptions: aiGreetings,
     recommendedGreetingId: recommended?.id ?? job.recommendedGreetingId,
     selectedGreeting: recommended?.text ?? job.selectedGreeting,

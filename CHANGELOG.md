@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-15
+
+### Changed
+
+- Made AI-generated, JD-specific greetings the primary communication flow.
+- Added a dedicated greeting request when the job-review response omits greeting
+  drafts.
+- Included full job description and company profile context in greeting prompts.
+- Kept local templates only as a fallback when AI is unavailable or fails.
+
 ## [0.2.9] - 2026-11-15
 
 ### Changed
