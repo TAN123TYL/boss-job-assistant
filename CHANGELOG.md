@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-15
+
+### Added
+
+- Added optional full job-description hydration by opening each visible job
+  detail panel before matching.
+- Added configurable maximum JD details per scan, defaulting to 30.
+- Merged detail-panel title, company, location, description, and company page
+  information back into the job record for resume and AI matching.
+
 ## [0.2.5] - 2026-11-15
 
 ### Added

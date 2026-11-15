@@ -1,4 +1,4 @@
-export const APP_SCHEMA_VERSION = 3;
+export const APP_SCHEMA_VERSION = 4;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'skipped';
 export type ExecutionStatus =
@@ -24,6 +24,8 @@ export interface ScreeningSettings {
   maxDailyMessages: number;
   sendIntervalSeconds: number;
   maxScanPages: number;
+  hydrateJobDetails: boolean;
+  maxJobDetails: number;
   aiEnabled: boolean;
   aiEndpoint: string;
   aiApiKey: string;
@@ -179,6 +181,7 @@ export interface BossScanPayload {
   page: BossPageStatus;
   pagesScanned: number;
   duplicatesSkipped: number;
+  detailsHydrated: number;
   stoppedReason: string;
 }
 
@@ -208,6 +211,8 @@ export type ContentRequest =
   | {
       type: 'BOSS_SCAN_JOBS';
       maxPages: number;
+      hydrateDetails: boolean;
+      maxDetails: number;
     }
   | {
       type: 'BOSS_OPEN_JOB';

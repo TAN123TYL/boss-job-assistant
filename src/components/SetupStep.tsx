@@ -206,7 +206,7 @@ export function SetupStep({
         综合排序：简历匹配 75% · 公司可信度 15% · 城市便利度 10%。城市和公司门槛仍会先行过滤。
       </p>
 
-      <div className="form-grid form-grid--three">
+      <div className="form-grid">
         <label className="field">
           <span className="field__label">滚动加载轮数</span>
           <input
@@ -215,6 +215,16 @@ export function SetupStep({
             max="30"
             value={draft.maxScanPages}
             onChange={(event) => update('maxScanPages', Number(event.target.value))}
+          />
+        </label>
+        <label className="field">
+          <span className="field__label">最多抓取 JD</span>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            value={draft.maxJobDetails}
+            onChange={(event) => update('maxJobDetails', Number(event.target.value))}
           />
         </label>
         <label className="field">
@@ -240,6 +250,17 @@ export function SetupStep({
       </div>
 
       <div className="switch-stack">
+        <label className="switch-row">
+          <input
+            type="checkbox"
+            checked={draft.hydrateJobDetails}
+            onChange={(event) => update('hydrateJobDetails', event.target.checked)}
+          />
+          <span>
+            抓取完整岗位 JD
+            <small>逐岗位读取右侧详情，匹配更准确但扫描更慢</small>
+          </span>
+        </label>
         <label className="switch-row">
           <input
             type="checkbox"
@@ -405,6 +426,7 @@ export function SetupStep({
             await onSave({
               ...draft,
               maxScanPages: Math.max(1, Math.min(30, draft.maxScanPages)),
+              maxJobDetails: Math.max(1, Math.min(100, draft.maxJobDetails)),
               maxDailyMessages: Math.max(1, Math.min(50, draft.maxDailyMessages)),
               sendIntervalSeconds: Math.max(10, Math.min(300, draft.sendIntervalSeconds)),
             });

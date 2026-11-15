@@ -25,8 +25,10 @@ modules avoid browser APIs where possible and are covered by Vitest.
 ### Browser adapter
 
 `src/entrypoints/content` reads and acts on the active Boss page. Selectors and
-DOM heuristics are isolated in `adapter.ts`. When the platform changes its page
-structure, this layer should be updated first.
+DOM heuristics are isolated in `adapter.ts`. Infinite-scroll batches can open each
+visible job card, read the right-side detail panel, and merge the full JD before
+domain matching. When the platform changes its page structure, this layer should
+be updated first.
 
 ### Extension UI
 

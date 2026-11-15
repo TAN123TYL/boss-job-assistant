@@ -31,7 +31,11 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
         status: getPageStatus(),
       };
     case 'BOSS_SCAN_JOBS': {
-      const result = await scanJobsWithInfiniteScroll(request.maxPages);
+      const result = await scanJobsWithInfiniteScroll(
+        request.maxPages,
+        request.hydrateDetails,
+        request.maxDetails,
+      );
       return {
         ok: true,
         payload: {

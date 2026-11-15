@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS: ScreeningSettings = {
   maxDailyMessages: 12,
   sendIntervalSeconds: 30,
   maxScanPages: 5,
+  hydrateJobDetails: true,
+  maxJobDetails: 30,
   aiEnabled: false,
   aiEndpoint: 'https://api.deepseek.com/v1',
   aiApiKey: '',

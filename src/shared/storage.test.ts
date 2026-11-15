@@ -31,9 +31,11 @@ describe('state migration', () => {
       lastScanAt: null,
     });
 
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.settings.maxScanPages).toBe(5);
     expect(migrated.settings.aiEnabled).toBe(false);
+    expect(migrated.settings.hydrateJobDetails).toBe(true);
+    expect(migrated.settings.maxJobDetails).toBe(30);
     expect(migrated.settings.minimumResumeScore).toBe(70);
     expect(migrated.jobs[0]?.companyAssessment.source).toBe('page_signals');
     expect(migrated.jobs[0]?.companyPageText).toBe('');

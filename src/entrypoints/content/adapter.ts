@@ -221,6 +221,94 @@ function mergeDraft(base: BossJobDraft, detail: Partial<BossJobDraft>): BossJobD
   };
 }
 
+function detailMatchesDraft(draft: BossJobDraft, detail: Partial<BossJobDraft>): boolean {
+  const detailTitle = normalizeWhitespace(detail.title ?? '');
+  const draftTitle = normalizeWhitespace(draft.title);
+  const detailCompany = normalizeWhitespace(detail.company ?? '');
+  const draftCompany = normalizeWhitespace(draft.company);
+
+  return (
+    Boolean(
+      detailTitle &&
+      draftTitle &&
+      (detailTitle.includes(draftTitle) || draftTitle.includes(detailTitle)),
+    ) ||
+    Boolean(
+      detailCompany &&
+      draftCompany &&
+      (detailCompany.includes(draftCompany) || draftCompany.includes(detailCompany)),
+    )
+  );
+}
+
+async function waitForDraftDetail(
+  draft: BossJobDraft,
+  previousDescription: string,
+): Promise<Partial<BossJobDraft> | null> {
+  const deadline = Date.now() + 3_500;
+
+  while (Date.now() < deadline) {
+    await wait(180);
+    const detail = extractVisibleDetail();
+    const description = normalizeWhitespace(detail.description ?? '');
+    if (
+      description.length >= 30 &&
+      (description !== previousDescription || detailMatchesDraft(draft, detail))
+    ) {
+      return detail;
+    }
+  }
+
+  return null;
+}
+
+export async function hydrateDraftDetails(
+  drafts: BossJobDraft[],
+  maximumDetails: number,
+): Promise<{
+  drafts: BossJobDraft[];
+  detailsHydrated: number;
+  detailsAttempted: number;
+}> {
+  const limit = Math.max(0, Math.min(100, Math.round(maximumDetails)));
+  let attempts = 0;
+  let detailsHydrated = 0;
+  const hydratedDrafts: BossJobDraft[] = [];
+
+  for (const draft of drafts) {
+    if (attempts >= limit || draft.description.length >= 80) {
+      hydratedDrafts.push(draft);
+      continue;
+    }
+
+    const link = findJobLink(draft.url);
+    if (!link) {
+      hydratedDrafts.push(draft);
+      continue;
+    }
+
+    attempts += 1;
+    const previousDescription = normalizeWhitespace(extractVisibleDetail().description ?? '');
+    const target = link.getAttribute('target');
+    link.removeAttribute('target');
+    link.click();
+    if (target) {
+      link.setAttribute('target', target);
+    }
+
+    const detail = await waitForDraftDetail(draft, previousDescription);
+    if (detail?.description) {
+      detailsHydrated += 1;
+      hydratedDrafts.push(mergeDraft(draft, detail));
+    } else {
+      hydratedDrafts.push(draft);
+    }
+    await wait(180);
+  }
+
+  return { drafts: hydratedDrafts, detailsHydrated, detailsAttempted: attempts };
+}
+
 export function scanCurrentPage(): BossJobDraft[] {
   const links = [...document.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTOR)].filter(
     isVisible,
@@ -377,11 +465,15 @@ async function loadMoreJobs(knownIds: Set<string>): Promise<BossJobDraft[]> {
 
 export async function scanJobsWithInfiniteScroll(
   requestedRounds: number,
+  hydrateDetails = false,
+  requestedDetails = 0,
 ): Promise<Omit<BossScanPayload, 'page'>> {
   const maximumRounds = Math.max(1, Math.min(30, Math.round(requestedRounds)));
+  let remainingDetails = Math.max(0, Math.min(100, Math.round(requestedDetails)));
   const collectedByJob = new Map<string, BossJobDraft>();
   let observedDrafts = 0;
   let pagesScanned = 0;
+  let detailsHydrated = 0;
   let stoppedReason = '';
 
   for (let round = 0; round < maximumRounds; round += 1) {
@@ -390,11 +482,18 @@ export async function scanJobsWithInfiniteScroll(
       break;
     }
 
-    const visibleDrafts = scanCurrentPage();
+    let visibleDrafts = scanCurrentPage();
     pagesScanned += 1;
     if (visibleDrafts.length === 0 && collectedByJob.size === 0) {
       stoppedReason = '当前页面没有读取到岗位';
       break;
+    }
+
+    if (hydrateDetails && remainingDetails > 0) {
+      const hydration = await hydrateDraftDetails(visibleDrafts, remainingDetails);
+      visibleDrafts = hydration.drafts;
+      detailsHydrated += hydration.detailsHydrated;
+      remainingDetails -= hydration.detailsAttempted;
     }
 
     for (const draft of visibleDrafts) {
@@ -422,6 +521,7 @@ export async function scanJobsWithInfiniteScroll(
     drafts,
     pagesScanned,
     duplicatesSkipped: Math.max(0, observedDrafts - drafts.length),
+    detailsHydrated,
     stoppedReason,
   };
 }

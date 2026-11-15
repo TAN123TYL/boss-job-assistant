@@ -5,6 +5,7 @@ import {
   countSentBubbles,
   dedupeJobDrafts,
   detectVerificationPage,
+  hydrateDraftDetails,
   scanCurrentPage,
   scanJobsWithInfiniteScroll,
 } from './adapter';
@@ -142,5 +143,53 @@ describe('BOSS page adapter', () => {
 
     expect(result.drafts.map((job) => job.title)).toEqual(['数据分析师', '商业分析师']);
     expect(result.pagesScanned).toBe(2);
+  });
+
+  it('opens a job card and merges the full JD from the detail panel', async () => {
+    document.body.innerHTML = `
+      <ul class="rec-job-list">
+        <li class="job-card-box">
+          <a href="https://www.zhipin.com/job_detail/jd-test.html">
+            <span class="job-name">测试开发工程师</span>
+            <span class="salary">9-14K</span>
+            <span class="job-area">重庆·渝中区</span>
+            <span class="company-name">示例科技有限公司</span>
+          </a>
+        </li>
+      </ul>
+      <div class="job-detail-container">
+        <div class="job-detail-info"><span class="name">其他岗位</span></div>
+        <div class="job-sec-text">其他岗位描述</div>
+      </div>
+    `;
+    const link = document.querySelector<HTMLAnchorElement>('a[href*="jd-test"]');
+    link?.addEventListener('click', (event) => {
+      event.preventDefault();
+      document.querySelector('.job-detail-info .name')!.textContent = '测试开发工程师';
+      document.querySelector('.job-sec-text')!.textContent =
+        '负责自动化测试平台建设，使用 Python、SQL 和 Linux，参与接口测试、缺陷管理和回归验证。';
+    });
+
+    const result = await hydrateDraftDetails(
+      [
+        {
+          url: 'https://www.zhipin.com/job_detail/jd-test.html',
+          title: '测试开发工程师',
+          company: '示例科技有限公司',
+          location: '重庆·渝中区',
+          salary: '9-14K',
+          tags: ['Python', 'SQL'],
+          description: '',
+          companySize: '',
+          financing: '',
+          recruiter: '',
+          source: 'list',
+        },
+      ],
+      1,
+    );
+
+    expect(result.detailsHydrated).toBe(1);
+    expect(result.drafts[0]?.description).toContain('自动化测试平台建设');
   });
 });

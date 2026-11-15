@@ -267,6 +267,8 @@ export function App() {
       const response = await sendContentRequest({
         type: 'BOSS_SCAN_JOBS',
         maxPages: state.settings.maxScanPages,
+        hydrateDetails: state.settings.hydrateJobDetails,
+        maxDetails: state.settings.maxJobDetails,
       });
       if (!response.ok) {
         throw new Error(response.error);
@@ -303,6 +305,7 @@ export function App() {
       const notes = [
         `加载 ${response.payload.pagesScanned} 轮`,
         `去重 ${response.payload.duplicatesSkipped} 个`,
+        `抓取 JD ${response.payload.detailsHydrated} 个`,
         `${readyCount} 个待确认`,
       ];
       if (aiFailures > 0) {
@@ -688,7 +691,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.2.5</span>
+        <span>v0.2.6</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>
