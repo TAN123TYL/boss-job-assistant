@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-15
+
+### Fixed
+
+- Always captured company profile text from the job detail panel when available,
+  even if the card already contained a partial JD.
+- Kept jobs for manual review when Tavily returned no results, public research
+  failed, or AI requested human verification.
+- Reserved automatic company rejection for explicit high-risk decisions.
+
 ## [0.2.7] - 2026-11-15
 
 ### Added

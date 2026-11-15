@@ -48,6 +48,15 @@ function allText(root: ParentNode, selectors: string[], maximum = 10): string[] 
   return [];
 }
 
+function collectText(root: ParentNode, selectors: string[], maximum = 12): string {
+  const values = selectors.flatMap((selector) =>
+    [...root.querySelectorAll<HTMLElement>(selector)]
+      .map((element) => normalizeWhitespace(element.textContent ?? ''))
+      .filter((value) => value.length >= 2),
+  );
+  return truncate(unique(values).slice(0, maximum).join('；'), 2_000);
+}
+
 function isVisible(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) {
     return false;
@@ -200,11 +209,15 @@ export function extractVisibleDetail(): Partial<BossJobDraft> {
       '.boss-info .name',
       '[class*="recruiter"]',
     ]),
-    companyPageText: firstText(detailRoot, [
+    companyPageText: collectText(detailRoot, [
       '.company-info',
       '.company-info-box',
       '.company-detail',
+      '.company-intro',
+      '.job-company-info',
       '[class*="company-info"]',
+      '[class*="company-detail"]',
+      '[class*="company-intro"]',
     ]),
     source: 'detail',
   };
@@ -261,8 +274,9 @@ async function waitForDraftDetail(
     await wait(180);
     const detail = extractVisibleDetail();
     const description = normalizeWhitespace(detail.description ?? '');
+    const companyPageText = normalizeWhitespace(detail.companyPageText ?? '');
     if (
-      description.length >= 30 &&
+      (description.length >= 30 || companyPageText.length >= 20) &&
       (description !== previousDescription || detailMatchesDraft(draft, detail))
     ) {
       return detail;
@@ -292,7 +306,10 @@ export async function hydrateDraftDetails(
       hydratedDrafts.push(draft);
       continue;
     }
-    if (attempts >= limit || draft.description.length >= 80) {
+    if (
+      attempts >= limit ||
+      (draft.description.length >= 80 && (draft.companyPageText?.length ?? 0) >= 20)
+    ) {
       hydratedDrafts.push(draft);
       continue;
     }

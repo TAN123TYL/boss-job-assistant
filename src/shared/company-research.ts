@@ -170,17 +170,19 @@ export async function researchCompanyWithAi(
 
   const results = await searchCompany(job.company, settings.tavilyApiKey, fetchImpl);
   if (results.length === 0) {
+    const researchedAt = new Date().toISOString();
     return {
       ...job,
-      stage: 'company_rejected',
+      stage: 'ready_for_review',
       companyAssessment: {
         ...job.companyAssessment,
-        trustDecision: 'unverified',
+        passed: true,
+        trustDecision: 'review',
         aiSummary: '全网检索没有返回可用来源，保留人工核验链接。',
-        researchedAt: new Date().toISOString(),
+        risks: unique([...job.companyAssessment.risks, '未检索到可用外部资料，需要人工复核']),
+        researchedAt,
       },
-      rejectionReasons: ['公司全网核验没有返回可用来源，未进入待投递队列'],
-      updatedAt: new Date().toISOString(),
+      updatedAt: researchedAt,
     };
   }
 
@@ -219,7 +221,7 @@ export async function researchCompanyWithAi(
     settings.companyTrustThreshold,
     ai.decision,
   );
-  const passed = trustDecision === 'trusted';
+  const passed = trustDecision !== 'risky';
   const companyAssessment: CompanyAssessment = {
     ...job.companyAssessment,
     score: verifiedScore,
@@ -231,7 +233,11 @@ export async function researchCompanyWithAi(
     aiEvidence: ai.evidence,
     researchedAt: reviewedAt,
     positives: unique([...job.companyAssessment.positives, ...ai.positives]),
-    risks: unique([...job.companyAssessment.risks, ...ai.risks]),
+    risks: unique([
+      ...job.companyAssessment.risks,
+      ...ai.risks,
+      ...(trustDecision === 'review' ? ['自动核验结果需要人工复核'] : []),
+    ]),
   };
 
   return {

@@ -99,4 +99,66 @@ describe('company web research', () => {
       ]),
     ).toThrow('可信分');
   });
+
+  it('keeps the job for manual review when public search returns no results', async () => {
+    const fakeFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const result = await researchCompanyWithAi(createJob(), settings, fakeFetch);
+
+    expect(result.stage).toBe('ready_for_review');
+    expect(result.companyAssessment.passed).toBe(true);
+    expect(result.companyAssessment.trustDecision).toBe('review');
+    expect(result.companyAssessment.risks.join('')).toContain('人工复核');
+  });
+
+  it('sends conservative review decisions to manual confirmation instead of rejecting', async () => {
+    const fakeFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: '公开企业信息',
+                url: 'https://example.com/company',
+                content: '企业登记状态存续，未发现明确负面记录。',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    trustScore: 76,
+                    decision: 'review',
+                    summary: '公开资料有限，需人工确认。',
+                    positives: ['登记状态存续'],
+                    risks: ['公开资料有限'],
+                    evidenceIndexes: [0],
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+
+    const result = await researchCompanyWithAi(createJob(), settings, fakeFetch);
+
+    expect(result.stage).toBe('ready_for_review');
+    expect(result.companyAssessment.passed).toBe(true);
+    expect(result.companyAssessment.trustDecision).toBe('review');
+  });
 });

@@ -276,13 +276,13 @@ export function App() {
             job.id === candidate.id
               ? {
                   ...job,
-                  stage: 'company_rejected' as const,
                   companyAssessment: {
                     ...job.companyAssessment,
-                    trustDecision: 'unverified' as const,
+                    passed: true,
+                    trustDecision: 'review' as const,
                     aiSummary: message,
+                    risks: [...new Set([...job.companyAssessment.risks, message])],
                   },
-                  rejectionReasons: [`公司全网核验失败，未进入待投递队列：${message}`],
                 }
               : job,
           );
@@ -803,7 +803,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.2.7</span>
+        <span>v0.2.8</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

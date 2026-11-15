@@ -164,6 +164,7 @@ describe('BOSS page adapter', () => {
       <div class="job-detail-container">
         <div class="job-detail-info"><span class="name">其他岗位</span></div>
         <div class="job-sec-text">其他岗位描述</div>
+        <div class="company-info">示例科技有限公司；企业服务；100-499人；B轮</div>
       </div>
     `;
     const link = document.querySelector<HTMLAnchorElement>('a[href*="jd-test"]');
@@ -200,6 +201,7 @@ describe('BOSS page adapter', () => {
     expect(progressMessages[0]).toContain('正在读取岗位 JD');
     expect(result.detailsHydrated).toBe(1);
     expect(result.drafts[0]?.description).toContain('自动化测试平台建设');
+    expect(result.drafts[0]?.companyPageText).toContain('100-499人');
   });
   it('stops JD hydration before clicking when the user cancels', async () => {
     document.body.innerHTML = `
