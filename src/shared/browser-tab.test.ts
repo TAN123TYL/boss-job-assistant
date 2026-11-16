@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jobIdFromUrl, sameJobUrl } from './browser-tab';
+import { jobIdFromUrl, normalizeBossChatUrl, sameJobUrl } from './browser-tab';
 
 describe('job tab matching', () => {
   it('matches the same Boss job across query parameters', () => {
@@ -20,5 +20,13 @@ describe('job tab matching', () => {
     expect(
       sameJobUrl('https://www.zhipin.com/web/geek/jobs', 'https://www.zhipin.com/web/geek/jobs'),
     ).toBe(false);
+  });
+
+  it('normalizes explicit Boss conversation URLs without dropping the chat id', () => {
+    expect(normalizeBossChatUrl('/web/geek/chat?id=encrypted-boss-id&source=notice')).toBe(
+      'https://www.zhipin.com/web/geek/chat?id=encrypted-boss-id&source=notice',
+    );
+    expect(normalizeBossChatUrl('https://example.com/web/geek/chat?id=wrong-host')).toBeNull();
+    expect(normalizeBossChatUrl('https://www.zhipin.com/web/geek/jobs')).toBeNull();
   });
 });

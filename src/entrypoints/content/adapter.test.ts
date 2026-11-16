@@ -6,10 +6,10 @@ import {
   clickWithoutNavigation,
   dedupeJobDrafts,
   detectVerificationPage,
+  findChatUrlInPage,
   hydrateDraftDetails,
   scanCurrentPage,
   scanJobsWithInfiniteScroll,
-  sendTextInConversationList,
   sendTextInOpenChat,
 } from './adapter';
 
@@ -269,18 +269,22 @@ describe('BOSS page adapter', () => {
   it('sends AI text in an already-open Boss chat and verifies its bubble', async () => {
     document.body.innerHTML = `
       <div class="chat-panel">
-        <div contenteditable="true" data-placeholder="请输入消息"></div>
-        <button type="button">发送</button>
+        <div id="chat-input" class="chat-input" contenteditable="true"></div>
+        <button class="btn-v2 btn-sure-v2 btn-send disabled" type="button" disabled>发送</button>
         <div class="chat-message-list"></div>
       </div>
     `;
-    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const editor = document.querySelector<HTMLElement>('#chat-input');
     const sendButton = document.querySelector<HTMLButtonElement>('button');
     Object.defineProperty(document, 'execCommand', {
       configurable: true,
       value: vi.fn(() => {
         if (editor) {
           editor.textContent = '您好，我之前做过自动化测试，方便聊聊吗？';
+        }
+        sendButton?.classList.remove('disabled');
+        if (sendButton) {
+          sendButton.disabled = false;
         }
         return true;
       }),
@@ -298,45 +302,25 @@ describe('BOSS page adapter', () => {
     expect(result.message).toContain('AI 文案');
   });
 
-  it('selects the matching message-list conversation before sending AI text', async () => {
+  it('finds the explicit Boss chat URL without clicking the conversation list', () => {
+    window.history.pushState({}, '', '/job_detail/example.html');
     document.body.innerHTML = `
-      <ul class="user-list">
-        <li><span>其他公司</span><span>其他岗位</span></li>
-        <li><span>重庆示例科技有限公司</span><span>自动化测试工程师</span></li>
-      </ul>
-      <div class="chat-panel">
-        <div contenteditable="true" data-placeholder="请输入消息"></div>
-        <button type="button">发送</button>
-        <div class="chat-message-list"></div>
-      </div>
+      <a href="/web/geek/chat">消息</a>
     `;
-    const conversation = document.querySelectorAll<HTMLElement>('.user-list li')[1];
-    conversation?.addEventListener('click', (event) => event.preventDefault());
-    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
-    const sendButton = document.querySelector<HTMLButtonElement>('button');
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: vi.fn(() => {
-        if (editor) {
-          editor.textContent = '您好，我想进一步了解自动化测试岗位。';
-        }
-        return true;
-      }),
-    });
-    sendButton?.addEventListener('click', () => {
-      const bubble = document.createElement('div');
-      bubble.className = 'chat-message';
-      bubble.textContent = editor?.textContent ?? '';
-      document.querySelector('.chat-message-list')?.append(bubble);
-    });
+    expect(findChatUrlInPage()).toBeNull();
 
-    const result = await sendTextInConversationList(
-      '重庆示例科技有限公司',
-      '自动化测试工程师',
-      '招聘经理',
-      '您好，我想进一步了解自动化测试岗位。',
+    document.body.innerHTML = `
+      <a data-href="/web/geek/chat?id=encrypted-boss-id">继续沟通</a>
+    `;
+    expect(findChatUrlInPage()).toBe(
+      new URL('/web/geek/chat?id=encrypted-boss-id', window.location.origin).toString(),
     );
 
-    expect(result.status).toBe('sent');
+    document.body.innerHTML = `
+      <button data-encrypt-boss-id="encrypted-from-attribute">立即沟通</button>
+    `;
+    expect(findChatUrlInPage()).toBe(
+      new URL('/web/geek/chat?id=encrypted-from-attribute', window.location.origin).toString(),
+    );
   });
 });

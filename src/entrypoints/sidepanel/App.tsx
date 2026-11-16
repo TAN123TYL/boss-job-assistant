@@ -24,10 +24,11 @@ import {
   createOrGetChatListTab,
   listZhipinTabIds,
   navigateTabToJob,
+  normalizeBossChatUrl,
+  openDedicatedChatTab,
   sendContentRequest,
   sendContentRequestToTab,
-  waitForTabOpenedBy,
-  waitForNewZhipinTab,
+  waitForChatTabAfterAction,
 } from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
 import { countSentToday } from '../../shared/execution';
@@ -60,6 +61,11 @@ import type {
 import { createId } from '../../shared/utils';
 
 type TabId = 'setup' | 'screen' | 'review' | 'queue';
+
+interface SendApprovedGreetingOutcome {
+  result: BossSendResult;
+  chatSendTabId: number | null;
+}
 
 const TABS: Array<{
   id: TabId;
@@ -122,6 +128,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<TabId>('setup');
   const [pageStatus, setPageStatus] = useState<BossPageStatus | null>(null);
   const [busyAction, setBusyAction] = useState<'scan' | 'execute' | null>(null);
+  const [executionProgress, setExecutionProgress] = useState('');
   const [notice, setNotice] = useState<Notice | null>(null);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
@@ -664,10 +671,12 @@ export function App() {
   const sendApprovedGreeting = async (
     job: JobRecord,
     automationTabId: number,
-    chatListTabId: number,
-  ): Promise<BossSendResult> => {
+    currentChatTabId: number | null,
+  ): Promise<SendApprovedGreetingOutcome> => {
+    setExecutionProgress(`正在打开 ${job.company} 的岗位页`);
     await navigateTabToJob(automationTabId, job.sourceUrl);
     const existingTabs = await listZhipinTabIds();
+    setExecutionProgress(`正在创建或打开 ${job.company} 的沟通会话`);
     let response: ContentResponse;
     try {
       response = await sendContentRequestToTab(
@@ -684,7 +693,7 @@ export function App() {
         ok: true,
         result: {
           status: 'chat_opened',
-          message: '岗位页请求中断，正在进入 Boss 消息列表',
+          message: '岗位页在打开沟通窗口时中断，正在定位 Boss 返回的会话页',
         },
       };
     }
@@ -694,45 +703,71 @@ export function App() {
     if (!('result' in response)) {
       throw new Error('原岗位页面未返回发送结果');
     }
-    if (response.result.status === 'chat_opened') {
-      const popupTabId =
-        (await waitForTabOpenedBy(automationTabId, 4_000)) ??
-        (await waitForNewZhipinTab(existingTabs, 4_000));
-      const chatResponse = await sendContentRequestToTab(
-        chatListTabId,
-        {
-          type: 'BOSS_SEND_CHAT_LIST_TEXT',
-          company: job.company,
-          title: job.title,
-          recruiter: job.recruiter,
-          text: job.selectedGreeting,
-        },
-        45_000,
-      );
-      if (!chatResponse.ok) {
-        throw new Error(chatResponse.error);
-      }
-      if (!('result' in chatResponse)) {
-        throw new Error('消息列表未返回 AI 文案发送结果');
-      }
-      if (chatResponse.result.status === 'sent' && popupTabId) {
-        await closeTab(popupTabId);
-      }
+
+    if (response.result.status !== 'chat_opened') {
       return {
-        status: chatResponse.result.status,
-        message:
-          chatResponse.result.status === 'sent'
-            ? `已进入 Boss 消息列表，在对应会话中发送 AI 文案并确认气泡：${chatResponse.result.message}`
-            : `Boss 消息列表发送 AI 文案失败：${chatResponse.result.message}`,
+        result: {
+          status: response.result.status,
+          message:
+            response.result.status === 'sent'
+              ? `已通过当前会话发送并确认气泡：${response.result.message}`
+              : `当前会话发送失败：${response.result.message}`,
+        },
+        chatSendTabId: currentChatTabId,
       };
     }
 
+    setExecutionProgress(`正在等待 ${job.company} 的聊天输入框`);
+    const openedChatTab = await waitForChatTabAfterAction(
+      automationTabId,
+      existingTabs,
+      response.result.chatUrl,
+      15_000,
+    );
+    const directedChatUrl =
+      normalizeBossChatUrl(response.result.chatUrl ?? '') ?? openedChatTab?.url ?? null;
+
+    if (!directedChatUrl) {
+      return {
+        result: {
+          status: 'manual_required',
+          message:
+            'Boss 已创建沟通，但未返回可定位的会话地址。消息列表保持打开，本次未发送 AI 文案。',
+        },
+        chatSendTabId: currentChatTabId,
+      };
+    }
+
+    const chatSendTabId =
+      openedChatTab && openedChatTab.tabId !== automationTabId
+        ? openedChatTab.tabId
+        : await openDedicatedChatTab(currentChatTabId, directedChatUrl);
+
+    setExecutionProgress(`正在向 ${job.company} 写入 AI 文案`);
+    const chatResponse = await sendContentRequestToTab(
+      chatSendTabId,
+      {
+        type: 'BOSS_SEND_CHAT_TEXT',
+        text: job.selectedGreeting,
+      },
+      45_000,
+    );
+    if (!chatResponse.ok) {
+      throw new Error(chatResponse.error);
+    }
+    if (!('result' in chatResponse)) {
+      throw new Error('Boss 会话页未返回 AI 文案发送结果');
+    }
+
     return {
-      status: response.result.status,
-      message:
-        response.result.status === 'sent'
-          ? `已通过已有会话发送并确认气泡：${response.result.message}`
-          : `已有会话发送失败：${response.result.message}`,
+      result: {
+        status: chatResponse.result.status,
+        message:
+          chatResponse.result.status === 'sent'
+            ? `已在明确会话页发送 AI 文案并确认气泡：${chatResponse.result.message}`
+            : `会话页发送 AI 文案失败：${chatResponse.result.message}`,
+      },
+      chatSendTabId,
     };
   };
 
@@ -760,10 +795,12 @@ export function App() {
     let sentCount = 0;
     let stoppedReason = '';
     let automationTabId: number | null = null;
+    let chatSendTabId: number | null = null;
 
     try {
+      setExecutionProgress('正在准备 Boss 自动发送标签页');
       automationTabId = await createAutomationTab();
-      const chatListTabId = await createOrGetChatListTab();
+      await createOrGetChatListTab();
       for (let index = 0; index < queue.length; index += 1) {
         const queueItem = queue[index];
         if (!queueItem) {
@@ -776,6 +813,7 @@ export function App() {
         }
 
         if (index > 0) {
+          setExecutionProgress(`等待 ${state.settings.sendIntervalSeconds} 秒后发送下一个岗位`);
           await delay(state.settings.sendIntervalSeconds * 1_000);
         }
 
@@ -798,7 +836,9 @@ export function App() {
 
         let result: BossSendResult;
         try {
-          result = await sendApprovedGreeting(queueItem, automationTabId, chatListTabId);
+          const outcome = await sendApprovedGreeting(queueItem, automationTabId, chatSendTabId);
+          result = outcome.result;
+          chatSendTabId = outcome.chatSendTabId;
         } catch (error) {
           result = {
             status: 'manual_required',
@@ -842,6 +882,7 @@ export function App() {
       if (automationTabId !== null) {
         await closeTab(automationTabId);
       }
+      setExecutionProgress('');
       setBusyAction(null);
     }
   };
@@ -943,6 +984,7 @@ export function App() {
             state={state}
             connected={connected}
             busy={busyAction === 'execute'}
+            busyMessage={executionProgress}
             onExecute={executeQueue}
             onRecover={recoverJob}
             onDismiss={dismissQueuedJob}
@@ -952,7 +994,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.9</span>
+        <span>v0.3.10</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

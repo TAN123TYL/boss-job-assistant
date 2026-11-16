@@ -10,7 +10,7 @@ The extension keeps the expensive decision points deterministic and local:
 4. Optionally verify public company information through search and an AI provider.
 5. Generate editable greeting options.
 6. Require explicit job approval.
-7. Execute the approved queue with one click in a single hidden job tab.
+7. Execute the approved queue with one click in a background job tab.
 8. Confirm a new complete message bubble before marking a send successful.
 
 ## Layers
@@ -33,7 +33,7 @@ be updated first.
 ### Extension UI
 
 `src/entrypoints/sidepanel` renders the four-step workflow. UI state is stored
-with `browser.storage.local`; no remote backend is used in version 0.1.0.
+with `browser.storage.local`; no remote backend is used.
 
 ### Lifecycle
 
@@ -71,6 +71,9 @@ flowchart LR
 - Failed and interrupted jobs require explicit recovery before another attempt.
 - Daily limits count only successful sends for the current local day.
 - The project never requests or stores a Boss password or session cookie.
+- The message list is never acted on with synthesized row clicks. Boss may treat
+  those as invalid and reload the whole page; approved chats are opened through
+  the exact `chat?id=...` URL returned by Boss.
 
 ## Company assessment boundary
 
@@ -87,6 +90,8 @@ The adapter prioritizes stable concepts over one brittle selector:
 - job links containing `/job_detail/`
 - classes containing `job-name`, `salary`, `company-name`, and `job-area`
 - visible communication and send controls by accessible text
+- explicit Boss conversation URLs containing `chat?id=...`
+- stable chat composer and send-button classes after the conversation is loaded
 - conservative stop behavior when a required control is missing
 
 Changes to Boss markup should be added to the adapter tests with a small,

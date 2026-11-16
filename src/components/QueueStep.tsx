@@ -19,6 +19,7 @@ interface QueueStepProps {
   state: AppState;
   connected: boolean;
   busy: boolean;
+  busyMessage: string;
   onExecute: () => Promise<void>;
   onRecover: (jobId: string, manualRiskAcknowledged: boolean) => Promise<void>;
   onDismiss: (jobId: string) => Promise<void>;
@@ -29,6 +30,7 @@ export function QueueStep({
   state,
   connected,
   busy,
+  busyMessage,
   onExecute,
   onRecover,
   onDismiss,
@@ -192,6 +194,12 @@ export function QueueStep({
         <Send aria-hidden="true" size={16} />
         {busy ? '正在自动发送' : '一键自动发送'}
       </button>
+
+      {busy && busyMessage ? (
+        <p className="queue-progress" role="status">
+          {busyMessage}
+        </p>
+      ) : null}
 
       {state.executionLogs.length > 0 ? (
         <div className="execution-history">

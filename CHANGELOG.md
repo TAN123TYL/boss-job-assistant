@@ -7,6 +7,23 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-11-16
+
+### Fixed
+
+- Removed synthesized clicks on Boss's virtualized message-list rows, which
+  caused a full page reload and lost the selected conversation.
+- Located approved chats from Boss-generated `chat?id=...` URLs and sent AI
+  follow-ups from a dedicated conversation tab instead.
+- Waited for both the editable composer and an addressable send control before
+  treating a transient chat component as ready.
+- Kept the persistent message list and conversation tabs open after sending.
+
+### Added
+
+- Added live queue-stage messages for job navigation, conversation lookup, AI
+  text insertion, and delivery verification.
+
 ## [0.3.9] - 2026-11-16
 
 ### Changed

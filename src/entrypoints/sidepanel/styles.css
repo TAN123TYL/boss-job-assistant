@@ -788,6 +788,17 @@ a {
   min-height: 40px;
 }
 
+.queue-progress {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--muted-strong);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .icon-button {
   width: 30px;
   height: 30px;

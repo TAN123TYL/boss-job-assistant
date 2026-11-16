@@ -695,7 +695,79 @@ function findCommunicationControl(): HTMLButtonElement | HTMLAnchorElement | nul
   );
 }
 
+function normalizeChatUrlCandidate(value: string): string | null {
+  const candidate = normalizeWhitespace(value);
+  if (!candidate || /^javascript:/iu.test(candidate)) {
+    return null;
+  }
+
+  try {
+    const url = new URL(candidate, location.origin);
+    if (url.hostname !== location.hostname || !/\/web\/geek\/chat\/?$/u.test(url.pathname)) {
+      return null;
+    }
+    if (!url.searchParams.get('id')) {
+      return null;
+    }
+    url.pathname = '/web/geek/chat';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function findChatUrlInPage(): string | null {
+  const currentUrl = normalizeChatUrlCandidate(location.href);
+  if (currentUrl) {
+    return currentUrl;
+  }
+
+  const nodes = [
+    ...document.querySelectorAll<HTMLElement>(
+      'a[href], [data-href], [data-url], [data-encrypt-boss-id], [data-encryptbossid], [data-encrypt-bossid]',
+    ),
+  ];
+
+  for (const node of nodes) {
+    for (const attribute of [...node.attributes]) {
+      if (!/(href|url|encrypt.*boss)/iu.test(attribute.name)) {
+        continue;
+      }
+      const directUrl = normalizeChatUrlCandidate(attribute.value);
+      if (directUrl) {
+        return directUrl;
+      }
+    }
+
+    const encryptedId =
+      node.getAttribute('data-encrypt-boss-id') ??
+      node.getAttribute('data-encryptbossid') ??
+      node.getAttribute('data-encrypt-bossid');
+    if (encryptedId && encryptedId.length >= 6) {
+      const url = new URL('/web/geek/chat', location.origin);
+      url.searchParams.set('id', encryptedId);
+      return url.toString();
+    }
+  }
+
+  return null;
+}
+
+function withOptionalChatUrl(
+  result: BossSendResult,
+  chatUrl: string | null | undefined,
+): BossSendResult {
+  return chatUrl ? { ...result, chatUrl } : result;
+}
+
 function findChatEditor(): HTMLElement | null {
+  const exactInput = document.querySelector<HTMLElement>(
+    '.chat-input[contenteditable], .chat-input [contenteditable]',
+  );
+  if (isVisible(exactInput)) {
+    return exactInput;
+  }
+
   const candidates = [
     ...document.querySelectorAll<HTMLElement>(
       'textarea, [contenteditable="true"], [contenteditable="plaintext-only"], .chat-input [contenteditable], .chat-editor [contenteditable]',
@@ -735,6 +807,7 @@ async function waitForReadyChatEditor(
 ): Promise<{ editor: HTMLElement | null; reason: string }> {
   const deadline = Date.now() + timeoutMs;
   let stableChecks = 0;
+  let previousEditor: HTMLElement | null = null;
 
   while (Date.now() < deadline) {
     const problem = chatPageProblem();
@@ -743,14 +816,26 @@ async function waitForReadyChatEditor(
     }
 
     const editor = findChatEditor();
-    if (editor) {
-      stableChecks += 1;
+    const hasComposerShell = Boolean(
+      editor &&
+      (document.querySelector('button.btn-send, button.btn-sure-v2') ||
+        /按Enter键发送/u.test(document.body.innerText ?? '')),
+    );
+    if (editor && hasComposerShell) {
+      stableChecks = previousEditor === editor ? stableChecks + 1 : 1;
+      previousEditor = editor;
       if (stableChecks >= 3) {
         await wait(600);
-        return { editor, reason: '' };
+        const currentEditor = findChatEditor();
+        if (currentEditor === editor && editor.isConnected && isVisible(editor)) {
+          return { editor, reason: '' };
+        }
+        stableChecks = 0;
+        previousEditor = null;
       }
     } else {
       stableChecks = 0;
+      previousEditor = null;
     }
     await wait(300);
   }
@@ -892,7 +977,8 @@ function findSendButton(): HTMLElement | null {
       if (
         !isVisible(button) ||
         button.hasAttribute('disabled') ||
-        button.getAttribute('aria-disabled') === 'true'
+        button.getAttribute('aria-disabled') === 'true' ||
+        /(^|\s)disabled(\s|$)/u.test(typeof button.className === 'string' ? button.className : '')
       ) {
         return false;
       }
@@ -994,107 +1080,6 @@ export async function sendTextInOpenChat(text: string): Promise<BossSendResult> 
   };
 }
 
-function conversationItemScore(
-  item: HTMLElement,
-  company: string,
-  title: string,
-  recruiter: string,
-): number {
-  const text = normalizeWhitespace(item.textContent ?? '').toLocaleLowerCase('zh-CN');
-  const companyCore = normalizeWhitespace(company)
-    .replace(/(有限责任公司|股份有限公司|有限公司|公司)$/u, '')
-    .toLocaleLowerCase('zh-CN');
-  const titleCore = normalizeWhitespace(title).toLocaleLowerCase('zh-CN');
-  const recruiterCore = normalizeWhitespace(recruiter).toLocaleLowerCase('zh-CN');
-  let score = 0;
-
-  if (companyCore && text.includes(companyCore)) {
-    score += 8;
-  }
-  if (titleCore && text.includes(titleCore)) {
-    score += 6;
-  }
-  if (recruiterCore && text.includes(recruiterCore)) {
-    score += 2;
-  }
-  return score;
-}
-
-function findConversationItem(
-  company: string,
-  title: string,
-  recruiter: string,
-): HTMLElement | null {
-  const candidates = [
-    ...document.querySelectorAll<HTMLElement>(
-      '.user-list li, .chat-user-list li, .conversation-list li, .session-list li, [class*="conversation-item"], [class*="session-item"], [class*="user-item"]',
-    ),
-  ].filter(
-    (item) =>
-      isVisible(item) &&
-      !item.closest('.chat-message, [class*="message-content"], [class*="chat-content"]'),
-  );
-
-  return (
-    candidates
-      .map((item) => ({
-        item,
-        score: conversationItemScore(item, company, title, recruiter),
-      }))
-      .filter((candidate) => candidate.score > 0)
-      .sort((left, right) => right.score - left.score)[0]?.item ?? null
-  );
-}
-
-async function waitForConversationItem(
-  company: string,
-  title: string,
-  recruiter: string,
-  timeoutMs = 12_000,
-): Promise<HTMLElement | null> {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const problem = chatPageProblem();
-    if (problem) {
-      return null;
-    }
-    const item = findConversationItem(company, title, recruiter);
-    if (item) {
-      return item;
-    }
-
-    const list = document.querySelector<HTMLElement>(
-      '.user-list, .chat-user-list, .conversation-list, .session-list',
-    );
-    if (list) {
-      list.scrollTop = 0;
-    }
-    await wait(400);
-  }
-
-  return null;
-}
-
-export async function sendTextInConversationList(
-  company: string,
-  title: string,
-  recruiter: string,
-  text: string,
-): Promise<BossSendResult> {
-  const conversation = await waitForConversationItem(company, title, recruiter);
-  if (!conversation) {
-    return {
-      status: 'manual_required',
-      message: '消息列表中未找到与该岗位对应的新会话，请人工打开确认',
-    };
-  }
-
-  clickWithoutNavigation(conversation);
-  await wait(800);
-  return sendTextInOpenChat(text);
-}
-
 export async function sendGreeting(url: string, text: string): Promise<BossSendResult> {
   if (detectVerificationPage()) {
     return {
@@ -1118,6 +1103,7 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
     };
   }
 
+  const knownChatUrl = findChatUrlInPage();
   let editor = findChatEditor();
   if (!editor) {
     const communicationControl = findCommunicationControl();
@@ -1132,14 +1118,20 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
       normalizeWhitespace(communicationControl.textContent ?? ''),
     );
     clickWithoutNavigation(communicationControl);
-    await wait(1_200);
+    await wait(1_500);
     if (isFirstContact) {
-      return {
-        status: 'chat_opened',
-        message: 'Boss 已创建首次沟通并发送默认开场语，请进入消息列表继续发送 AI 文案',
-      };
+      const openedChatUrl = findChatUrlInPage() ?? knownChatUrl;
+      return withOptionalChatUrl(
+        {
+          status: 'chat_opened',
+          message: 'Boss 已创建首次沟通；扩展将打开 Boss 返回的明确会话地址继续发送 AI 文案',
+        },
+        openedChatUrl,
+      );
     }
-    editor = findChatEditor();
+
+    const ready = await waitForReadyChatEditor(4_000);
+    editor = ready.editor;
   }
 
   if (detectVerificationPage()) {
@@ -1150,13 +1142,18 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
   }
 
   if (!editor) {
-    return {
-      status: 'chat_opened',
-      message: 'Boss 已打开沟通窗口，可能位于新的聊天标签页',
-    };
+    const openedChatUrl = findChatUrlInPage() ?? knownChatUrl;
+    return withOptionalChatUrl(
+      {
+        status: 'chat_opened',
+        message: 'Boss 已打开沟通窗口，正在定位可输入消息的会话页',
+      },
+      openedChatUrl,
+    );
   }
 
-  return sendTextInOpenChat(text);
+  const result = await sendTextInOpenChat(text);
+  return withOptionalChatUrl(result, findChatUrlInPage() ?? knownChatUrl ?? result.chatUrl);
 }
 
 function numericText(element: HTMLElement): number {

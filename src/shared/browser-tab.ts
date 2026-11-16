@@ -35,6 +35,28 @@ export function sameJobUrl(left: string, right: string): boolean {
   return Boolean(leftId && rightId && leftId === rightId);
 }
 
+export function normalizeBossChatUrl(value: string): string | null {
+  try {
+    const url = new URL(value, 'https://www.zhipin.com');
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname !== 'www.zhipin.com' ||
+      !/\/web\/geek\/chat\/?$/u.test(url.pathname)
+    ) {
+      return null;
+    }
+    url.pathname = '/web/geek/chat';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isBossChatUrl(value: string | undefined): boolean {
+  return Boolean(value && normalizeBossChatUrl(value));
+}
+
 function isConnectionError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : '';
   return /Receiving end does not exist|Could not establish connection/iu.test(message);
@@ -125,14 +147,13 @@ export async function createOrGetChatListTab(): Promise<number> {
     (tab) => tab.id != null && tab.url && /\/web\/geek\/chat(?:\?|$)/u.test(tab.url),
   );
   if (existing?.id) {
-    await browser.tabs.update(existing.id, { active: true }).catch(() => undefined);
     await waitForTabReady(existing.id).catch(() => undefined);
     return existing.id;
   }
 
   const created = await browser.tabs.create({
     url: CHAT_LIST_URL,
-    active: true,
+    active: false,
   });
   if (!created.id) {
     throw new Error('无法创建 Boss 消息列表标签页');
@@ -179,55 +200,90 @@ export async function closeTab(tabId: number): Promise<void> {
   await browser.tabs.remove(tabId).catch(() => undefined);
 }
 
-export async function waitForTabOpenedBy(tabId: number, timeoutMs = 8_000): Promise<number | null> {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const tabs = await browser.tabs.query({});
-    const child = tabs.find(
-      (tab) =>
-        tab.id != null &&
-        tab.openerTabId === tabId &&
-        (!tab.url || tab.url.startsWith('https://www.zhipin.com/')),
-    );
-    if (child?.id) {
-      await browser.tabs.update(child.id, { active: false }).catch(() => undefined);
-      await waitForTabReady(child.id).catch(() => undefined);
-      return child.id;
-    }
-    await delay(400);
-  }
-
-  return null;
-}
-
 export async function listZhipinTabIds(): Promise<Set<number>> {
   const tabs = await browser.tabs.query({ url: ZHIPIN_URL_PATTERN });
   return new Set(tabs.map((tab) => tab.id).filter((tabId): tabId is number => tabId != null));
 }
 
-export async function waitForNewZhipinTab(
+export interface ChatTabReference {
+  tabId: number;
+  url: string;
+}
+
+export async function waitForChatTabAfterAction(
+  sourceTabId: number,
   existingTabIds: Set<number>,
-  timeoutMs = 8_000,
-): Promise<number | null> {
+  expectedUrl?: string,
+  timeoutMs = 15_000,
+): Promise<ChatTabReference | null> {
+  const expectedChatUrl = expectedUrl ? normalizeBossChatUrl(expectedUrl) : null;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     const tabs = await browser.tabs.query({ url: ZHIPIN_URL_PATTERN });
-    const newTab = tabs.find((tab) => tab.id != null && !existingTabIds.has(tab.id));
-    if (newTab?.id) {
-      await browser.tabs.update(newTab.id, { active: false }).catch(() => undefined);
-      await waitForTabReady(newTab.id).catch(() => undefined);
-      return newTab.id;
+    const candidates = tabs
+      .filter((tab) => {
+        const tabId = tab.id;
+        return tabId != null && (tabId === sourceTabId || !existingTabIds.has(tabId));
+      })
+      .filter((tab) => isBossChatUrl(tab.url))
+      .sort((left, right) => {
+        const leftUrl = left.url ? normalizeBossChatUrl(left.url) : null;
+        const rightUrl = right.url ? normalizeBossChatUrl(right.url) : null;
+        const leftExact = expectedChatUrl && leftUrl === expectedChatUrl ? 1 : 0;
+        const rightExact = expectedChatUrl && rightUrl === expectedChatUrl ? 1 : 0;
+        const leftNew = left.id !== sourceTabId ? 1 : 0;
+        const rightNew = right.id !== sourceTabId ? 1 : 0;
+        return rightNew - leftNew || rightExact - leftExact;
+      });
+
+    for (const candidate of candidates) {
+      if (!candidate.id || !candidate.url) {
+        continue;
+      }
+      if (candidate.id !== sourceTabId) {
+        await browser.tabs.update(candidate.id, { active: false }).catch(() => undefined);
+      }
+      await waitForTabReady(candidate.id).catch(() => undefined);
+      const current = await browser.tabs.get(candidate.id);
+      const currentUrl = current.url ? normalizeBossChatUrl(current.url) : null;
+      if (currentUrl) {
+        return {
+          tabId: candidate.id,
+          url: currentUrl,
+        };
+      }
     }
+
     await delay(400);
   }
 
   return null;
 }
 
-export async function closeTabsOpenedBy(tabId: number): Promise<void> {
-  const tabs = await browser.tabs.query({});
-  const children = tabs.filter((tab) => tab.openerTabId === tabId && tab.id);
-  await Promise.all(children.map((tab) => (tab.id ? closeTab(tab.id) : Promise.resolve())));
+export async function openDedicatedChatTab(tabId: number | null, chatUrl: string): Promise<number> {
+  const normalizedUrl = normalizeBossChatUrl(chatUrl);
+  if (!normalizedUrl) {
+    throw new Error('Boss 未返回可用的会话地址');
+  }
+
+  if (tabId !== null) {
+    const current = await browser.tabs.get(tabId).catch(() => null);
+    const currentUrl = current?.url ? normalizeBossChatUrl(current.url) : null;
+    if (currentUrl !== normalizedUrl) {
+      await browser.tabs.update(tabId, { url: normalizedUrl, active: false });
+      await waitForTabReady(tabId);
+    }
+    return tabId;
+  }
+
+  const created = await browser.tabs.create({
+    url: normalizedUrl,
+    active: false,
+  });
+  if (!created.id) {
+    throw new Error('无法创建 Boss 会话发送标签页');
+  }
+  await waitForTabReady(created.id);
+  return created.id;
 }

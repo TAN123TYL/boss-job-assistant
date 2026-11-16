@@ -192,6 +192,7 @@ export interface BossScanPayload {
 export interface BossSendResult {
   status: 'sent' | 'blocked' | 'manual_required' | 'not_found' | 'chat_opened';
   message: string;
+  chatUrl?: string;
 }
 
 export interface BossReplySignal {
@@ -241,13 +242,6 @@ export type ContentRequest =
     }
   | {
       type: 'BOSS_SEND_CHAT_TEXT';
-      text: string;
-    }
-  | {
-      type: 'BOSS_SEND_CHAT_LIST_TEXT';
-      company: string;
-      title: string;
-      recruiter: string;
       text: string;
     }
   | {
