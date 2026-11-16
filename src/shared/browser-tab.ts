@@ -178,6 +178,31 @@ export async function waitForTabOpenedBy(tabId: number, timeoutMs = 8_000): Prom
   return null;
 }
 
+export async function listZhipinTabIds(): Promise<Set<number>> {
+  const tabs = await browser.tabs.query({ url: ZHIPIN_URL_PATTERN });
+  return new Set(tabs.map((tab) => tab.id).filter((tabId): tabId is number => tabId != null));
+}
+
+export async function waitForNewZhipinTab(
+  existingTabIds: Set<number>,
+  timeoutMs = 8_000,
+): Promise<number | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const tabs = await browser.tabs.query({ url: ZHIPIN_URL_PATTERN });
+    const newTab = tabs.find((tab) => tab.id != null && !existingTabIds.has(tab.id));
+    if (newTab?.id) {
+      await browser.tabs.update(newTab.id, { active: false }).catch(() => undefined);
+      await waitForTabReady(newTab.id).catch(() => undefined);
+      return newTab.id;
+    }
+    await delay(400);
+  }
+
+  return null;
+}
+
 export async function closeTabsOpenedBy(tabId: number): Promise<void> {
   const tabs = await browser.tabs.query({});
   const children = tabs.filter((tab) => tab.openerTabId === tabId && tab.id);

@@ -22,10 +22,12 @@ import {
   closeTab,
   closeTabsOpenedBy,
   createAutomationTab,
+  listZhipinTabIds,
   navigateTabToJob,
   sendContentRequest,
   sendContentRequestToTab,
   waitForTabOpenedBy,
+  waitForNewZhipinTab,
 } from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
 import { countSentToday } from '../../shared/execution';
@@ -49,6 +51,7 @@ import type {
   AppState,
   BossPageStatus,
   BossSendResult,
+  ContentResponse,
   ExecutionLog,
   JobRecord,
   ScanProgress,
@@ -664,15 +667,27 @@ export function App() {
   ): Promise<BossSendResult> => {
     try {
       await navigateTabToJob(automationTabId, job.sourceUrl);
-      const response = await sendContentRequestToTab(
-        automationTabId,
-        {
-          type: 'BOSS_SEND_GREETING',
-          url: job.sourceUrl,
-          text: job.selectedGreeting,
-        },
-        45_000,
-      );
+      const existingTabs = await listZhipinTabIds();
+      let response: ContentResponse;
+      try {
+        response = await sendContentRequestToTab(
+          automationTabId,
+          {
+            type: 'BOSS_SEND_GREETING',
+            url: job.sourceUrl,
+            text: job.selectedGreeting,
+          },
+          45_000,
+        );
+      } catch {
+        response = {
+          ok: true,
+          result: {
+            status: 'chat_opened',
+            message: '岗位页请求中断，正在定位新打开的聊天页',
+          },
+        };
+      }
       if (!response.ok) {
         throw new Error(response.error);
       }
@@ -680,7 +695,9 @@ export function App() {
         throw new Error('原岗位页面未返回发送结果');
       }
       if (response.result.status === 'chat_opened') {
-        const chatTabId = await waitForTabOpenedBy(automationTabId, 8_000);
+        const chatTabId =
+          (await waitForTabOpenedBy(automationTabId, 5_000)) ??
+          (await waitForNewZhipinTab(existingTabs, 5_000));
         const chatResponse = await sendContentRequestToTab(
           chatTabId ?? automationTabId,
           {
@@ -932,7 +949,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.6</span>
+        <span>v0.3.7</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

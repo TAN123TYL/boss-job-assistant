@@ -755,11 +755,24 @@ function setComposerValue(editor: HTMLElement, text: string): boolean {
   if (normalizeWhitespace(editor.textContent ?? '') !== normalizeWhitespace(text)) {
     editor.textContent = text;
   }
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(false);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
   editor.dispatchEvent(
     new InputEvent('input', {
       bubbles: true,
       composed: true,
       inputType: 'insertText',
+      data: text,
+    }),
+  );
+  editor.dispatchEvent(new Event('change', { bubbles: true }));
+  editor.dispatchEvent(
+    new CompositionEvent('compositionend', {
+      bubbles: true,
       data: text,
     }),
   );
@@ -822,15 +835,40 @@ async function waitForSentBubble(text: string, baselineCount: number): Promise<b
   return false;
 }
 
-function findSendButton(): HTMLButtonElement | null {
+function findSendButton(): HTMLElement | null {
   return (
-    [...document.querySelectorAll<HTMLButtonElement>('button')].find((button) => {
-      if (!isVisible(button) || button.disabled) {
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        'button, [role="button"], [class*="send"], [aria-label*="发送"]',
+      ),
+    ].find((button) => {
+      if (
+        !isVisible(button) ||
+        button.hasAttribute('disabled') ||
+        button.getAttribute('aria-disabled') === 'true'
+      ) {
         return false;
       }
-      return /^(发送|发 送)$/u.test(normalizeWhitespace(button.textContent ?? ''));
+      const label =
+        normalizeWhitespace(button.textContent ?? '') ||
+        normalizeWhitespace(
+          button.getAttribute('aria-label') ?? button.getAttribute('title') ?? '',
+        );
+      return /^(发送|发 送|send)$/iu.test(label);
     }) ?? null
   );
+}
+
+async function waitForSendButton(): Promise<HTMLElement | null> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const button = findSendButton();
+    if (button) {
+      return button;
+    }
+    await wait(150);
+  }
+  return null;
 }
 
 export async function sendTextInOpenChat(text: string): Promise<BossSendResult> {
@@ -873,7 +911,14 @@ export async function sendTextInOpenChat(text: string): Promise<BossSendResult> 
   }
 
   await wait(300);
-  const sendButton = findSendButton();
+  if (normalizeWhitespace(editor.textContent ?? '') !== normalizeWhitespace(messageText)) {
+    return {
+      status: 'manual_required',
+      message: '聊天编辑器没有保留 AI 文案，Boss 可能拒绝了合成输入事件',
+    };
+  }
+
+  const sendButton = await waitForSendButton();
   if (sendButton) {
     sendButton.click();
   } else {

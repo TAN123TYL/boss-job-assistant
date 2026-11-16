@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-11-16
+
+### Fixed
+
+- Retried AI greeting delivery after the first message channel closed during a
+  Boss chat-tab transition.
+- Located new chat tabs by comparing the pre-send Boss tab snapshot when browser
+  opener metadata is unavailable.
+- Verified that the chat editor retained the AI text, waited for an enabled send
+  control, and added editor-level input/composition events plus Enter fallback.
+
 ## [0.3.6] - 2026-11-16
 
 ### Fixed
