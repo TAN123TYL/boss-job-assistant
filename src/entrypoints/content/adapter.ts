@@ -328,12 +328,7 @@ export async function hydrateDraftDetails(
       total: limit,
     });
     const previousDescription = normalizeWhitespace(extractVisibleDetail().description ?? '');
-    const target = link.getAttribute('target');
-    link.removeAttribute('target');
-    link.click();
-    if (target) {
-      link.setAttribute('target', target);
-    }
+    clickWithoutNavigation(link);
 
     const detail = await waitForDraftDetail(draft, previousDescription, shouldCancel);
     if (detail?.description) {
@@ -649,17 +644,29 @@ function findJobLink(url: string): HTMLAnchorElement | null {
   );
 }
 
+export function clickWithoutNavigation(element: HTMLElement): void {
+  const preventNavigation = (event: MouseEvent) => {
+    event.preventDefault();
+  };
+  element.addEventListener('click', preventNavigation, true);
+  try {
+    element.dispatchEvent(
+      new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  } finally {
+    element.removeEventListener('click', preventNavigation, true);
+  }
+}
+
 export async function openJob(url: string): Promise<boolean> {
   const link = findJobLink(url);
 
   if (link) {
     link.scrollIntoView({ block: 'center' });
-    const target = link.getAttribute('target');
-    link.removeAttribute('target');
-    link.click();
-    if (target) {
-      link.setAttribute('target', target);
-    }
+    clickWithoutNavigation(link);
     await wait(1_200);
     return true;
   }
@@ -831,7 +838,7 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
       };
     }
 
-    communicationControl.click();
+    clickWithoutNavigation(communicationControl);
     await wait(1_200);
     editor = findChatEditor();
   }

@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   countSentBubbles,
+  clickWithoutNavigation,
   dedupeJobDrafts,
   detectVerificationPage,
   hydrateDraftDetails,
@@ -239,5 +240,27 @@ describe('BOSS page adapter', () => {
 
     expect(clickHandler).not.toHaveBeenCalled();
     expect(result.detailsHydrated).toBe(0);
+  });
+
+  it('prevents default anchor navigation while preserving page click handlers', () => {
+    document.body.innerHTML = `
+      <a href="https://www.zhipin.com/job_detail/click-test.html">
+        测试开发工程师
+      </a>
+    `;
+    const link = document.querySelector<HTMLAnchorElement>('a');
+    let handlerCalled = false;
+    let defaultPrevented = false;
+    link?.addEventListener('click', (event) => {
+      handlerCalled = true;
+      defaultPrevented = event.defaultPrevented;
+    });
+
+    if (link) {
+      clickWithoutNavigation(link);
+    }
+
+    expect(handlerCalled).toBe(true);
+    expect(defaultPrevented).toBe(true);
   });
 });

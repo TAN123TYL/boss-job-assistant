@@ -104,15 +104,18 @@ export default defineContentScript({
   matches: ['https://www.zhipin.com/*'],
   runAt: 'document_idle',
   main() {
-    browser.runtime.onMessage.addListener((message: unknown) => {
+    browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       if (!isContentRequest(message)) {
-        return undefined;
+        return false;
       }
 
-      return handleRequest(message).catch((error: unknown): ContentResponse => ({
-        ok: false,
-        error: error instanceof Error ? error.message : '页面操作失败',
-      }));
+      void handleRequest(message)
+        .catch((error: unknown): ContentResponse => ({
+          ok: false,
+          error: error instanceof Error ? error.message : '页面操作失败',
+        }))
+        .then(sendResponse);
+      return true;
     });
   },
 });

@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-16
+
+### Fixed
+
+- Prevented job-card and communication-link default navigation while preserving
+  Boss click handlers, avoiding content-script teardown during an active request.
+- Changed approved-message delivery to use a reusable background job-detail tab
+  instead of depending on the current search-result DOM.
+- Switched the content-script message listener to the explicit `sendResponse`
+  channel pattern so asynchronous replies close cleanly.
+
 ## [0.3.2] - 2026-11-15
 
 ### Added

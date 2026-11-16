@@ -618,25 +618,10 @@ export function App() {
   };
 
   const sendApprovedGreeting = async (job: JobRecord): Promise<BossSendResult> => {
-    let response = await sendContentRequest({
-      type: 'BOSS_SEND_GREETING',
-      url: job.sourceUrl,
-      text: job.selectedGreeting,
-    });
-    if (!response.ok) {
-      throw new Error(response.error);
-    }
-    if (!('result' in response)) {
-      throw new Error('页面未返回发送结果');
-    }
-
-    if (response.result.status !== 'not_found') {
-      return response.result;
-    }
-
     const fallbackTab = await getOrCreateJobTab(job.sourceUrl);
+    let shouldCloseTab = false;
     try {
-      response = await sendContentRequestToTab(
+      const response = await sendContentRequestToTab(
         fallbackTab.tabId,
         {
           type: 'BOSS_SEND_GREETING',
@@ -651,19 +636,18 @@ export function App() {
       if (!('result' in response)) {
         throw new Error('原岗位页面未返回发送结果');
       }
+      shouldCloseTab = response.result.status === 'sent';
 
       return {
         status: response.result.status,
         message:
           response.result.status === 'sent'
-            ? `当前列表未找到岗位，已通过原岗位链接发送并确认气泡：${response.result.message}`
-            : `当前列表未找到岗位，已打开原岗位链接重试：${response.result.message}`,
+            ? `已通过原岗位详情页发送并确认气泡：${response.result.message}`
+            : `已通过原岗位详情页重试：${response.result.message}`,
       };
     } finally {
-      if (fallbackTab.created && response.ok && 'result' in response) {
-        if (response.result.status === 'sent') {
-          await closeTab(fallbackTab.tabId);
-        }
+      if (fallbackTab.created && shouldCloseTab) {
+        await closeTab(fallbackTab.tabId);
       }
     }
   };
@@ -877,7 +861,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.2</span>
+        <span>v0.3.3</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>
