@@ -9,6 +9,7 @@ import {
   hydrateDraftDetails,
   scanCurrentPage,
   scanJobsWithInfiniteScroll,
+  sendTextInOpenChat,
 } from './adapter';
 
 beforeEach(() => {
@@ -262,5 +263,37 @@ describe('BOSS page adapter', () => {
 
     expect(handlerCalled).toBe(true);
     expect(defaultPrevented).toBe(true);
+  });
+
+  it('sends AI text in an already-open Boss chat and verifies its bubble', async () => {
+    document.body.innerHTML = `
+      <div class="chat-panel">
+        <div contenteditable="true" data-placeholder="请输入消息"></div>
+        <button type="button">发送</button>
+        <div class="chat-message-list"></div>
+      </div>
+    `;
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const sendButton = document.querySelector<HTMLButtonElement>('button');
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => {
+        if (editor) {
+          editor.textContent = '您好，我之前做过自动化测试，方便聊聊吗？';
+        }
+        return true;
+      }),
+    });
+    sendButton?.addEventListener('click', () => {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-message';
+      bubble.textContent = editor?.textContent ?? '';
+      document.querySelector('.chat-message-list')?.append(bubble);
+    });
+
+    const result = await sendTextInOpenChat('您好，我之前做过自动化测试，方便聊聊吗？');
+
+    expect(result.status).toBe('sent');
+    expect(result.message).toContain('AI 文案');
   });
 });

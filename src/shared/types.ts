@@ -190,7 +190,7 @@ export interface BossScanPayload {
 }
 
 export interface BossSendResult {
-  status: 'sent' | 'blocked' | 'manual_required' | 'not_found';
+  status: 'sent' | 'blocked' | 'manual_required' | 'not_found' | 'chat_opened';
   message: string;
 }
 
@@ -237,6 +237,10 @@ export type ContentRequest =
   | {
       type: 'BOSS_SEND_GREETING';
       url: string;
+      text: string;
+    }
+  | {
+      type: 'BOSS_SEND_CHAT_TEXT';
       text: string;
     }
   | {

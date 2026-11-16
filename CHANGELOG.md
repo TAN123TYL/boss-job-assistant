@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-16
+
+### Fixed
+
+- Detected when Boss opens the chat in a separate tab after sending its built-in
+  opening greeting.
+- Located the newly opened chat tab and sent the AI-generated greeting there.
+- Verified success against the AI greeting bubble instead of the Boss default
+  greeting.
+- Added Enter-key fallback when the chat page has no visible send button.
+
 ## [0.3.5] - 2026-11-16
 
 ### Changed

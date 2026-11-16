@@ -156,6 +156,28 @@ export async function closeTab(tabId: number): Promise<void> {
   await browser.tabs.remove(tabId).catch(() => undefined);
 }
 
+export async function waitForTabOpenedBy(tabId: number, timeoutMs = 8_000): Promise<number | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const tabs = await browser.tabs.query({});
+    const child = tabs.find(
+      (tab) =>
+        tab.id != null &&
+        tab.openerTabId === tabId &&
+        (!tab.url || tab.url.startsWith('https://www.zhipin.com/')),
+    );
+    if (child?.id) {
+      await browser.tabs.update(child.id, { active: false }).catch(() => undefined);
+      await waitForTabReady(child.id).catch(() => undefined);
+      return child.id;
+    }
+    await delay(400);
+  }
+
+  return null;
+}
+
 export async function closeTabsOpenedBy(tabId: number): Promise<void> {
   const tabs = await browser.tabs.query({});
   const children = tabs.filter((tab) => tab.openerTabId === tabId && tab.id);

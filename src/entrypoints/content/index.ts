@@ -12,6 +12,7 @@ import {
   scanJobsWithInfiniteScroll,
   scanReplySignals,
   sendGreeting,
+  sendTextInOpenChat,
 } from './adapter';
 
 let cancelScanRequested = false;
@@ -34,6 +35,7 @@ function isContentRequest(value: unknown): value is ContentRequest {
     'BOSS_SCAN_JOBS',
     'BOSS_OPEN_JOB',
     'BOSS_SEND_GREETING',
+    'BOSS_SEND_CHAT_TEXT',
     'BOSS_CHECK_REPLIES',
     'BOSS_CANCEL_SCAN',
   ].includes(String(value.type));
@@ -79,6 +81,11 @@ async function handleRequest(request: ContentRequest): Promise<ContentResponse> 
       return {
         ok: true,
         result: await sendGreeting(request.url, request.text),
+      };
+    case 'BOSS_SEND_CHAT_TEXT':
+      return {
+        ok: true,
+        result: await sendTextInOpenChat(request.text),
       };
     case 'BOSS_CHECK_REPLIES':
       return {

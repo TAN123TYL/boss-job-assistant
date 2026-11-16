@@ -716,6 +716,15 @@ function findChatEditor(): HTMLElement | null {
 
 function setComposerValue(editor: HTMLElement, text: string): boolean {
   editor.focus();
+  editor.dispatchEvent(
+    new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      inputType: 'insertText',
+      data: text,
+    }),
+  );
 
   if (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement) {
     const prototype =
@@ -732,6 +741,7 @@ function setComposerValue(editor: HTMLElement, text: string): boolean {
     editor.dispatchEvent(
       new InputEvent('input', {
         bubbles: true,
+        composed: true,
         inputType: 'insertText',
         data: text,
       }),
@@ -748,11 +758,29 @@ function setComposerValue(editor: HTMLElement, text: string): boolean {
   editor.dispatchEvent(
     new InputEvent('input', {
       bubbles: true,
+      composed: true,
       inputType: 'insertText',
       data: text,
     }),
   );
   return normalizeWhitespace(editor.textContent ?? '') === normalizeWhitespace(text);
+}
+
+function pressEnterToSend(editor: HTMLElement): void {
+  editor.focus();
+  for (const type of ['keydown', 'keypress', 'keyup']) {
+    editor.dispatchEvent(
+      new KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+      }),
+    );
+  }
 }
 
 function isInsideComposer(element: Element): boolean {
@@ -805,6 +833,74 @@ function findSendButton(): HTMLButtonElement | null {
   );
 }
 
+export async function sendTextInOpenChat(text: string): Promise<BossSendResult> {
+  if (detectVerificationPage()) {
+    return {
+      status: 'blocked',
+      message: '页面出现验证或访问异常，请人工处理后再继续',
+    };
+  }
+
+  const messageText = truncate(text, 500);
+  if (!normalizeWhitespace(messageText)) {
+    return {
+      status: 'manual_required',
+      message: '沟通文案为空',
+    };
+  }
+
+  const editor = findChatEditor();
+  if (!editor) {
+    return {
+      status: 'manual_required',
+      message: '聊天页面未找到输入框，可能仍在新标签加载中',
+    };
+  }
+
+  const existingBubbles = countSentBubbles(messageText);
+  if (existingBubbles > 0) {
+    return {
+      status: 'sent',
+      message: '聊天中已存在相同文案，已跳过重复发送',
+    };
+  }
+
+  if (!setComposerValue(editor, messageText)) {
+    return {
+      status: 'manual_required',
+      message: '无法写入聊天输入框，请人工检查',
+    };
+  }
+
+  await wait(300);
+  const sendButton = findSendButton();
+  if (sendButton) {
+    sendButton.click();
+  } else {
+    pressEnterToSend(editor);
+  }
+
+  if (detectVerificationPage()) {
+    return {
+      status: 'blocked',
+      message: '发送后出现验证页面，队列已停止',
+    };
+  }
+
+  const verified = await waitForSentBubble(messageText, existingBubbles);
+  if (!verified) {
+    return {
+      status: 'manual_required',
+      message: '已触发 AI 文案发送，但未检测到完整气泡，请人工确认',
+    };
+  }
+
+  return {
+    status: 'sent',
+    message: '已检测到 AI 文案的完整发送气泡',
+  };
+}
+
 export async function sendGreeting(url: string, text: string): Promise<BossSendResult> {
   if (detectVerificationPage()) {
     return {
@@ -852,50 +948,12 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
 
   if (!editor) {
     return {
-      status: 'manual_required',
-      message: '未找到聊天输入框，页面结构可能已变化',
+      status: 'chat_opened',
+      message: 'Boss 已打开沟通窗口，可能位于新的聊天标签页',
     };
   }
 
-  if (!setComposerValue(editor, truncate(text, 500))) {
-    return {
-      status: 'manual_required',
-      message: '无法写入聊天输入框，请人工检查',
-    };
-  }
-
-  await wait(250);
-  const sendButton = findSendButton();
-  if (!sendButton) {
-    return {
-      status: 'manual_required',
-      message: '未找到可用发送按钮，请人工检查',
-    };
-  }
-
-  const messageText = truncate(text, 500);
-  const baselineBubbles = countSentBubbles(messageText);
-  sendButton.click();
-
-  if (detectVerificationPage()) {
-    return {
-      status: 'blocked',
-      message: '发送后出现验证页面，队列已停止',
-    };
-  }
-
-  const verified = await waitForSentBubble(messageText, baselineBubbles);
-  if (!verified) {
-    return {
-      status: 'manual_required',
-      message: '已触发发送，但未检测到完整文字气泡，请人工确认是否已经发送',
-    };
-  }
-
-  return {
-    status: 'sent',
-    message: '已检测到完整发送气泡',
-  };
+  return sendTextInOpenChat(text);
 }
 
 function numericText(element: HTMLElement): number {

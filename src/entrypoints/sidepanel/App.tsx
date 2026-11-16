@@ -25,6 +25,7 @@ import {
   navigateTabToJob,
   sendContentRequest,
   sendContentRequestToTab,
+  waitForTabOpenedBy,
 } from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
 import { countSentToday } from '../../shared/execution';
@@ -82,6 +83,9 @@ function logStatusFromResult(status: BossSendResult['status']): ExecutionLog['st
     return 'blocked';
   }
   if (status === 'manual_required') {
+    return 'manual_required';
+  }
+  if (status === 'chat_opened') {
     return 'manual_required';
   }
   return 'failed';
@@ -675,6 +679,30 @@ export function App() {
       if (!('result' in response)) {
         throw new Error('原岗位页面未返回发送结果');
       }
+      if (response.result.status === 'chat_opened') {
+        const chatTabId = await waitForTabOpenedBy(automationTabId, 8_000);
+        const chatResponse = await sendContentRequestToTab(
+          chatTabId ?? automationTabId,
+          {
+            type: 'BOSS_SEND_CHAT_TEXT',
+            text: job.selectedGreeting,
+          },
+          45_000,
+        );
+        if (!chatResponse.ok) {
+          throw new Error(chatResponse.error);
+        }
+        if (!('result' in chatResponse)) {
+          throw new Error('聊天页面未返回 AI 文案发送结果');
+        }
+        return {
+          status: chatResponse.result.status,
+          message:
+            chatResponse.result.status === 'sent'
+              ? `Boss 默认开场后已发送 AI 文案并确认气泡：${chatResponse.result.message}`
+              : `Boss 默认开场后发送 AI 文案失败：${chatResponse.result.message}`,
+        };
+      }
 
       return {
         status: response.result.status,
@@ -904,7 +932,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.5</span>
+        <span>v0.3.6</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

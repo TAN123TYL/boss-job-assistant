@@ -45,7 +45,7 @@ export function transitionToSending(job: JobRecord, at: string): JobRecord {
 
 export function transitionFromResult(
   job: JobRecord,
-  status: 'sent' | 'blocked' | 'manual_required' | 'not_found',
+  status: 'sent' | 'blocked' | 'manual_required' | 'not_found' | 'chat_opened',
   message: string,
   at: string,
 ): JobRecord {
@@ -58,7 +58,7 @@ export function transitionFromResult(
       ? 'sent'
       : status === 'blocked'
         ? 'blocked'
-        : status === 'manual_required'
+        : status === 'manual_required' || status === 'chat_opened'
           ? 'manual_required'
           : 'failed';
 
