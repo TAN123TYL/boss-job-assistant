@@ -697,7 +697,9 @@ function findCommunicationControl(): HTMLButtonElement | HTMLAnchorElement | nul
 
 function findChatEditor(): HTMLElement | null {
   const candidates = [
-    ...document.querySelectorAll<HTMLElement>('textarea, [contenteditable="true"]'),
+    ...document.querySelectorAll<HTMLElement>(
+      'textarea, [contenteditable="true"], [contenteditable="plaintext-only"], .chat-input [contenteditable], .chat-editor [contenteditable]',
+    ),
   ].filter(isVisible);
 
   return (
@@ -712,6 +714,51 @@ function findChatEditor(): HTMLElement | null {
     candidates.at(-1) ??
     null
   );
+}
+
+function chatPageProblem(): string | null {
+  const text = normalizeWhitespace(document.body.innerText ?? document.body.textContent ?? '');
+  if (/(账号异常|登录已失效|请先登录)/u.test(text)) {
+    return 'Boss 登录状态已失效，请先人工登录';
+  }
+  if (/(职位已关闭|职位不存在|无法继续沟通|对方已注销)/u.test(text)) {
+    return '该岗位或招聘方已经无法继续沟通';
+  }
+  if (detectVerificationPage()) {
+    return '聊天页面出现验证码或安全验证';
+  }
+  return null;
+}
+
+async function waitForReadyChatEditor(
+  timeoutMs = 15_000,
+): Promise<{ editor: HTMLElement | null; reason: string }> {
+  const deadline = Date.now() + timeoutMs;
+  let stableChecks = 0;
+
+  while (Date.now() < deadline) {
+    const problem = chatPageProblem();
+    if (problem) {
+      return { editor: null, reason: problem };
+    }
+
+    const editor = findChatEditor();
+    if (editor) {
+      stableChecks += 1;
+      if (stableChecks >= 3) {
+        await wait(600);
+        return { editor, reason: '' };
+      }
+    } else {
+      stableChecks = 0;
+    }
+    await wait(300);
+  }
+
+  return {
+    editor: null,
+    reason: '等待 15 秒后仍未找到稳定的聊天输入框',
+  };
 }
 
 function setComposerValue(editor: HTMLElement, text: string): boolean {
@@ -887,11 +934,12 @@ export async function sendTextInOpenChat(text: string): Promise<BossSendResult> 
     };
   }
 
-  const editor = findChatEditor();
+  const ready = await waitForReadyChatEditor();
+  const editor = ready.editor;
   if (!editor) {
     return {
       status: 'manual_required',
-      message: '聊天页面未找到输入框，可能仍在新标签加载中',
+      message: ready.reason,
     };
   }
 

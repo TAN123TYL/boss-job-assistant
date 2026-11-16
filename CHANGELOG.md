@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-11-16
+
+### Fixed
+
+- Added first-contact chat readiness detection so Boss can finish creating the
+  conversation and loading the editor before AI text is inserted.
+- Expanded chat editor selectors for plaintext contenteditable controls.
+- Added explicit diagnostics for expired login, closed jobs, verification pages,
+  and editors that never load.
+
 ## [0.3.7] - 2026-11-16
 
 ### Fixed
