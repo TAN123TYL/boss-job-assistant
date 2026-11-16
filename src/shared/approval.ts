@@ -13,8 +13,8 @@ export function approvedQueue(jobs: JobRecord[]): JobRecord[] {
   return jobs.filter(isApprovedForQueue);
 }
 
-export function canExecuteQueue(jobs: JobRecord[], secondConfirmation: boolean): boolean {
-  return secondConfirmation && approvedQueue(jobs).length > 0;
+export function canExecuteQueue(jobs: JobRecord[]): boolean {
+  return approvedQueue(jobs).length > 0;
 }
 
 export function recoverableJobs(jobs: JobRecord[]): JobRecord[] {

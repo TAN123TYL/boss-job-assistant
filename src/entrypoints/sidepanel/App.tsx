@@ -20,7 +20,9 @@ import { approvedQueue, canExecuteQueue } from '../../shared/approval';
 import { backupToJson, parseAppBackup } from '../../shared/backup';
 import {
   closeTab,
-  getOrCreateJobTab,
+  closeTabsOpenedBy,
+  createAutomationTab,
+  navigateTabToJob,
   sendContentRequest,
   sendContentRequestToTab,
 } from '../../shared/browser-tab';
@@ -652,12 +654,14 @@ export function App() {
     });
   };
 
-  const sendApprovedGreeting = async (job: JobRecord): Promise<BossSendResult> => {
-    const fallbackTab = await getOrCreateJobTab(job.sourceUrl);
-    let shouldCloseTab = false;
+  const sendApprovedGreeting = async (
+    job: JobRecord,
+    automationTabId: number,
+  ): Promise<BossSendResult> => {
     try {
+      await navigateTabToJob(automationTabId, job.sourceUrl);
       const response = await sendContentRequestToTab(
-        fallbackTab.tabId,
+        automationTabId,
         {
           type: 'BOSS_SEND_GREETING',
           url: job.sourceUrl,
@@ -671,7 +675,6 @@ export function App() {
       if (!('result' in response)) {
         throw new Error('原岗位页面未返回发送结果');
       }
-      shouldCloseTab = response.result.status === 'sent';
 
       return {
         status: response.result.status,
@@ -681,22 +684,20 @@ export function App() {
             : `已通过原岗位详情页重试：${response.result.message}`,
       };
     } finally {
-      if (fallbackTab.created && shouldCloseTab) {
-        await closeTab(fallbackTab.tabId);
-      }
+      await closeTabsOpenedBy(automationTabId);
     }
   };
 
-  const executeQueue = async (secondConfirmation: boolean) => {
+  const executeQueue = async () => {
     if (!state) {
       return;
     }
 
     const queue = approvedQueue(state.jobs);
-    if (!canExecuteQueue(state.jobs, secondConfirmation)) {
+    if (!canExecuteQueue(state.jobs)) {
       setNotice({
         kind: 'error',
-        message: '没有待发送岗位，或尚未完成发送前确认',
+        message: '没有待发送岗位',
       });
       return;
     }
@@ -710,8 +711,10 @@ export function App() {
     let workingState = state;
     let sentCount = 0;
     let stoppedReason = '';
+    let automationTabId: number | null = null;
 
     try {
+      automationTabId = await createAutomationTab();
       for (let index = 0; index < queue.length; index += 1) {
         const queueItem = queue[index];
         if (!queueItem) {
@@ -746,7 +749,7 @@ export function App() {
 
         let result: BossSendResult;
         try {
-          result = await sendApprovedGreeting(queueItem);
+          result = await sendApprovedGreeting(queueItem, automationTabId);
         } catch (error) {
           result = {
             status: 'manual_required',
@@ -787,6 +790,10 @@ export function App() {
         message: `队列已停止：${error instanceof Error ? error.message : '发送失败'}`,
       });
     } finally {
+      if (automationTabId !== null) {
+        await closeTabsOpenedBy(automationTabId);
+        await closeTab(automationTabId);
+      }
       setBusyAction(null);
     }
   };
@@ -897,7 +904,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.4</span>
+        <span>v0.3.5</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

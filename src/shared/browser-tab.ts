@@ -95,6 +95,34 @@ export interface JobTabResult {
   created: boolean;
 }
 
+async function waitForTabReady(tabId: number): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const tab = await browser.tabs.get(tabId);
+    if (tab.status === 'complete' && tab.url?.startsWith('https://www.zhipin.com/')) {
+      return;
+    }
+    await delay(500);
+  }
+  throw new Error('岗位详情页面加载超时');
+}
+
+export async function createAutomationTab(): Promise<number> {
+  const tab = await browser.tabs.create({
+    url: 'https://www.zhipin.com/web/geek/jobs',
+    active: false,
+  });
+  if (!tab.id) {
+    throw new Error('无法创建自动发送标签页');
+  }
+  await waitForTabReady(tab.id);
+  return tab.id;
+}
+
+export async function navigateTabToJob(tabId: number, sourceUrl: string): Promise<void> {
+  await browser.tabs.update(tabId, { url: sourceUrl });
+  await waitForTabReady(tabId);
+}
+
 export async function getOrCreateJobTab(sourceUrl: string): Promise<JobTabResult> {
   const openTabs = await browser.tabs.query({ url: ZHIPIN_URL_PATTERN });
   const existing = openTabs.find(
@@ -126,4 +154,10 @@ export async function getOrCreateJobTab(sourceUrl: string): Promise<JobTabResult
 
 export async function closeTab(tabId: number): Promise<void> {
   await browser.tabs.remove(tabId).catch(() => undefined);
+}
+
+export async function closeTabsOpenedBy(tabId: number): Promise<void> {
+  const tabs = await browser.tabs.query({});
+  const children = tabs.filter((tab) => tab.openerTabId === tabId && tab.id);
+  await Promise.all(children.map((tab) => (tab.id ? closeTab(tab.id) : Promise.resolve())));
 }

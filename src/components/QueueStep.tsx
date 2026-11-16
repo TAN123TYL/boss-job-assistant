@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import {
   CircleAlert,
   CheckCircle2,
-  CircleStop,
   Clock3,
   ExternalLink,
   History,
@@ -21,7 +19,7 @@ interface QueueStepProps {
   state: AppState;
   connected: boolean;
   busy: boolean;
-  onExecute: (secondConfirmation: boolean) => Promise<void>;
+  onExecute: () => Promise<void>;
   onRecover: (jobId: string, manualRiskAcknowledged: boolean) => Promise<void>;
   onDismiss: (jobId: string) => Promise<void>;
   onConfirmSent: (jobId: string) => Promise<void>;
@@ -36,7 +34,6 @@ export function QueueStep({
   onDismiss,
   onConfirmSent,
 }: QueueStepProps) {
-  const [confirming, setConfirming] = useState(false);
   const queue = approvedQueue(state.jobs);
   const interrupted = recoverableJobs(state.jobs);
   const sentToday = countSentToday(state.executionLogs);
@@ -190,10 +187,10 @@ export function QueueStep({
         className="button button--primary button--wide"
         type="button"
         disabled={queue.length === 0 || !connected || remaining === 0 || busy}
-        onClick={() => setConfirming(true)}
+        onClick={() => void onExecute()}
       >
         <Send aria-hidden="true" size={16} />
-        {busy ? '正在执行批准队列' : '执行已批准队列'}
+        {busy ? '正在自动发送' : '一键自动发送'}
       </button>
 
       {state.executionLogs.length > 0 ? (
@@ -221,43 +218,6 @@ export function QueueStep({
                 </time>
               </div>
             ))}
-        </div>
-      ) : null}
-
-      {confirming ? (
-        <div className="modal-backdrop" role="presentation">
-          <div
-            className="confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="confirm-send-title"
-          >
-            <span className="confirm-modal__icon">
-              <CircleStop aria-hidden="true" size={22} />
-            </span>
-            <h2 id="confirm-send-title">确认发送 {queue.length} 条消息</h2>
-            <p>只会处理已批准岗位，遇到验证页面、页面结构变化或发送异常时立即停止。</p>
-            <div className="modal-actions">
-              <button
-                className="button button--ghost"
-                type="button"
-                onClick={() => setConfirming(false)}
-              >
-                取消
-              </button>
-              <button
-                className="button button--primary"
-                type="button"
-                onClick={async () => {
-                  setConfirming(false);
-                  await onExecute(true);
-                }}
-              >
-                <Send aria-hidden="true" size={16} />
-                确认执行
-              </button>
-            </div>
-          </div>
         </div>
       ) : null}
     </section>

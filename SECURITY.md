@@ -21,10 +21,9 @@ privately to the maintainers.
 The project must preserve all of these safeguards:
 
 1. Jobs cannot enter the send queue without explicit user approval.
-2. A second confirmation is required before executing a queue.
-3. The extension stops on a verification page or an unrecognized page state.
-4. CAPTCHAs and anti-bot controls are never bypassed.
-5. Credentials must never be committed to the repository or stored by the
+2. The extension stops on a verification page or an unrecognized page state.
+3. CAPTCHAs and anti-bot controls are never bypassed.
+4. Credentials must never be committed to the repository or stored by the
    extension.
-6. A send is marked successful only after a new matching message bubble appears.
-7. Failed, blocked, or unverified sends require explicit recovery.
+5. A send is marked successful only after a new matching message bubble appears.
+6. Failed, blocked, or unverified sends require explicit recovery.

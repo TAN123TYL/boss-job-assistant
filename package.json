@@ -1,6 +1,6 @@
 {
   "name": "boss-job-assistant",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "type": "module",
   "description": "Human-in-the-loop BOSS Zhipin job screening with AI review, company research, and verified sending.",

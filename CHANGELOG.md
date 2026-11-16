@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-16
+
+### Changed
+
+- Replaced per-queue confirmation and per-job tabs with one-click automatic
+  sending in a single hidden job tab.
+- Jobs are navigated sequentially inside the same background tab.
+- New tabs opened by Boss during sending are closed automatically.
+- Removed the second-confirmation modal while retaining explicit per-job
+  approval, verification stops, and bubble verification.
+
 ## [0.3.4] - 2026-11-16
 
 ### Added

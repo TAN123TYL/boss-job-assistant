@@ -72,11 +72,11 @@ describe('approval gate', () => {
     expect(approvedQueue([pending, approved]).map((job) => job.id)).toEqual(['approved']);
   });
 
-  it('requires a second queue confirmation', () => {
+  it('executes only when the approved queue has sendable jobs', () => {
     const jobs = [createJob()];
 
-    expect(canExecuteQueue(jobs, false)).toBe(false);
-    expect(canExecuteQueue(jobs, true)).toBe(true);
+    expect(canExecuteQueue([])).toBe(false);
+    expect(canExecuteQueue(jobs)).toBe(true);
   });
 
   it('does not queue jobs already sent or empty greetings', () => {

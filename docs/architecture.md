@@ -10,7 +10,7 @@ The extension keeps the expensive decision points deterministic and local:
 4. Optionally verify public company information through search and an AI provider.
 5. Generate editable greeting options.
 6. Require explicit job approval.
-7. Require a second confirmation before queue execution.
+7. Execute the approved queue with one click in a single hidden job tab.
 8. Confirm a new complete message bubble before marking a send successful.
 
 ## Layers
@@ -56,14 +56,13 @@ flowchart LR
   E --> F[Greeting drafts]
   F --> G[Manual approval]
   G --> H[Send queue]
-  H --> I[Second confirmation]
-  I --> J[Send and verify bubble]
+  H --> I[One-click send and verify bubble]
 ```
 
 ## Security invariants
 
 - `approvedQueue` excludes jobs without explicit approval.
-- `canExecuteQueue` requires both an approved item and a second confirmation.
+- `canExecuteQueue` requires at least one explicitly approved item.
 - A verification page is checked before and after browser actions.
 - A queue only starts jobs in the `idle` state.
 - A send succeeds only after a new matching message bubble is observed.
