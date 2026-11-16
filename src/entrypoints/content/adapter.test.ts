@@ -9,6 +9,7 @@ import {
   hydrateDraftDetails,
   scanCurrentPage,
   scanJobsWithInfiniteScroll,
+  sendTextInConversationList,
   sendTextInOpenChat,
 } from './adapter';
 
@@ -295,5 +296,47 @@ describe('BOSS page adapter', () => {
 
     expect(result.status).toBe('sent');
     expect(result.message).toContain('AI 文案');
+  });
+
+  it('selects the matching message-list conversation before sending AI text', async () => {
+    document.body.innerHTML = `
+      <ul class="user-list">
+        <li><span>其他公司</span><span>其他岗位</span></li>
+        <li><span>重庆示例科技有限公司</span><span>自动化测试工程师</span></li>
+      </ul>
+      <div class="chat-panel">
+        <div contenteditable="true" data-placeholder="请输入消息"></div>
+        <button type="button">发送</button>
+        <div class="chat-message-list"></div>
+      </div>
+    `;
+    const conversation = document.querySelectorAll<HTMLElement>('.user-list li')[1];
+    conversation?.addEventListener('click', (event) => event.preventDefault());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const sendButton = document.querySelector<HTMLButtonElement>('button');
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => {
+        if (editor) {
+          editor.textContent = '您好，我想进一步了解自动化测试岗位。';
+        }
+        return true;
+      }),
+    });
+    sendButton?.addEventListener('click', () => {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-message';
+      bubble.textContent = editor?.textContent ?? '';
+      document.querySelector('.chat-message-list')?.append(bubble);
+    });
+
+    const result = await sendTextInConversationList(
+      '重庆示例科技有限公司',
+      '自动化测试工程师',
+      '招聘经理',
+      '您好，我想进一步了解自动化测试岗位。',
+    );
+
+    expect(result.status).toBe('sent');
   });
 });

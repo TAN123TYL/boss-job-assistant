@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 import type { ContentRequest, ContentResponse } from './types';
 
 const ZHIPIN_URL_PATTERN = 'https://www.zhipin.com/*';
+const CHAT_LIST_URL = 'https://www.zhipin.com/web/geek/chat';
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -116,6 +117,28 @@ export async function createAutomationTab(): Promise<number> {
   }
   await waitForTabReady(tab.id);
   return tab.id;
+}
+
+export async function createOrGetChatListTab(): Promise<number> {
+  const tabs = await browser.tabs.query({ url: ZHIPIN_URL_PATTERN });
+  const existing = tabs.find(
+    (tab) => tab.id != null && tab.url && /\/web\/geek\/chat(?:\?|$)/u.test(tab.url),
+  );
+  if (existing?.id) {
+    await browser.tabs.update(existing.id, { active: true }).catch(() => undefined);
+    await waitForTabReady(existing.id).catch(() => undefined);
+    return existing.id;
+  }
+
+  const created = await browser.tabs.create({
+    url: CHAT_LIST_URL,
+    active: true,
+  });
+  if (!created.id) {
+    throw new Error('无法创建 Boss 消息列表标签页');
+  }
+  await waitForTabReady(created.id);
+  return created.id;
 }
 
 export async function navigateTabToJob(tabId: number, sourceUrl: string): Promise<void> {

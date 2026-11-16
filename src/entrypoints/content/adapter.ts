@@ -994,6 +994,107 @@ export async function sendTextInOpenChat(text: string): Promise<BossSendResult> 
   };
 }
 
+function conversationItemScore(
+  item: HTMLElement,
+  company: string,
+  title: string,
+  recruiter: string,
+): number {
+  const text = normalizeWhitespace(item.textContent ?? '').toLocaleLowerCase('zh-CN');
+  const companyCore = normalizeWhitespace(company)
+    .replace(/(有限责任公司|股份有限公司|有限公司|公司)$/u, '')
+    .toLocaleLowerCase('zh-CN');
+  const titleCore = normalizeWhitespace(title).toLocaleLowerCase('zh-CN');
+  const recruiterCore = normalizeWhitespace(recruiter).toLocaleLowerCase('zh-CN');
+  let score = 0;
+
+  if (companyCore && text.includes(companyCore)) {
+    score += 8;
+  }
+  if (titleCore && text.includes(titleCore)) {
+    score += 6;
+  }
+  if (recruiterCore && text.includes(recruiterCore)) {
+    score += 2;
+  }
+  return score;
+}
+
+function findConversationItem(
+  company: string,
+  title: string,
+  recruiter: string,
+): HTMLElement | null {
+  const candidates = [
+    ...document.querySelectorAll<HTMLElement>(
+      '.user-list li, .chat-user-list li, .conversation-list li, .session-list li, [class*="conversation-item"], [class*="session-item"], [class*="user-item"]',
+    ),
+  ].filter(
+    (item) =>
+      isVisible(item) &&
+      !item.closest('.chat-message, [class*="message-content"], [class*="chat-content"]'),
+  );
+
+  return (
+    candidates
+      .map((item) => ({
+        item,
+        score: conversationItemScore(item, company, title, recruiter),
+      }))
+      .filter((candidate) => candidate.score > 0)
+      .sort((left, right) => right.score - left.score)[0]?.item ?? null
+  );
+}
+
+async function waitForConversationItem(
+  company: string,
+  title: string,
+  recruiter: string,
+  timeoutMs = 12_000,
+): Promise<HTMLElement | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const problem = chatPageProblem();
+    if (problem) {
+      return null;
+    }
+    const item = findConversationItem(company, title, recruiter);
+    if (item) {
+      return item;
+    }
+
+    const list = document.querySelector<HTMLElement>(
+      '.user-list, .chat-user-list, .conversation-list, .session-list',
+    );
+    if (list) {
+      list.scrollTop = 0;
+    }
+    await wait(400);
+  }
+
+  return null;
+}
+
+export async function sendTextInConversationList(
+  company: string,
+  title: string,
+  recruiter: string,
+  text: string,
+): Promise<BossSendResult> {
+  const conversation = await waitForConversationItem(company, title, recruiter);
+  if (!conversation) {
+    return {
+      status: 'manual_required',
+      message: '消息列表中未找到与该岗位对应的新会话，请人工打开确认',
+    };
+  }
+
+  clickWithoutNavigation(conversation);
+  await wait(800);
+  return sendTextInOpenChat(text);
+}
+
 export async function sendGreeting(url: string, text: string): Promise<BossSendResult> {
   if (detectVerificationPage()) {
     return {
@@ -1027,8 +1128,17 @@ export async function sendGreeting(url: string, text: string): Promise<BossSendR
       };
     }
 
+    const isFirstContact = /^(立即沟通|打招呼|发起沟通)$/u.test(
+      normalizeWhitespace(communicationControl.textContent ?? ''),
+    );
     clickWithoutNavigation(communicationControl);
     await wait(1_200);
+    if (isFirstContact) {
+      return {
+        status: 'chat_opened',
+        message: 'Boss 已创建首次沟通并发送默认开场语，请进入消息列表继续发送 AI 文案',
+      };
+    }
     editor = findChatEditor();
   }
 

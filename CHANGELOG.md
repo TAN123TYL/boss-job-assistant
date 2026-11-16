@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-11-16
+
+### Changed
+
+- Routed first-contact AI follow-ups through a persistent Boss message-list tab
+  instead of the temporary communication popup.
+- Matched the new conversation by company, job title, and recruiter before
+  inserting the AI greeting.
+- Kept the message-list tab open after sending and closed only the temporary
+  popup after successful delivery.
+
 ## [0.3.8] - 2026-11-16
 
 ### Fixed

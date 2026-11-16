@@ -244,6 +244,13 @@ export type ContentRequest =
       text: string;
     }
   | {
+      type: 'BOSS_SEND_CHAT_LIST_TEXT';
+      company: string;
+      title: string;
+      recruiter: string;
+      text: string;
+    }
+  | {
       type: 'BOSS_CHECK_REPLIES';
     }
   | {
