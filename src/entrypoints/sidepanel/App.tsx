@@ -36,6 +36,7 @@ import { buildCandidateProfile } from '../../shared/matching';
 import {
   canRecoverJob,
   confirmManualSend,
+  shouldStopQueueAfterResult,
   transitionFromResult,
   transitionToQueued,
   transitionToRecovered,
@@ -793,6 +794,7 @@ export function App() {
 
     let workingState = state;
     let sentCount = 0;
+    let failedCount = 0;
     let stoppedReason = '';
     let automationTabId: number | null = null;
     let chatSendTabId: number | null = null;
@@ -861,17 +863,28 @@ export function App() {
 
         if (result.status === 'sent') {
           sentCount += 1;
-        } else {
+        } else if (shouldStopQueueAfterResult(result.status)) {
+          failedCount += 1;
           stoppedReason = result.message;
           break;
+        } else {
+          failedCount += 1;
         }
       }
 
+      const resultSummary = `成功 ${sentCount} 条，失败 ${failedCount} 条`;
       setNotice({
-        kind: sentCount > 0 && !stoppedReason ? 'success' : sentCount > 0 ? 'info' : 'error',
+        kind:
+          stoppedReason && sentCount === 0 && failedCount === 0
+            ? 'error'
+            : failedCount > 0 || stoppedReason
+              ? 'info'
+              : 'success',
         message: stoppedReason
-          ? `已发送 ${sentCount} 条，队列已停止：${stoppedReason}`
-          : `批准队列执行完成，共发送 ${sentCount} 条`,
+          ? `${resultSummary}。失败项已进入失败与待处理列，队列因安全状态停止：${stoppedReason}`
+          : failedCount > 0
+            ? `${resultSummary}。失败项已进入失败与待处理列，其余岗位已继续处理`
+            : `批准队列执行完成，${resultSummary}`,
       });
     } catch (error) {
       setNotice({
@@ -994,7 +1007,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.10</span>
+        <span>v0.3.11</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

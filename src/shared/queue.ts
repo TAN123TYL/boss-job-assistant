@@ -1,4 +1,4 @@
-import type { ExecutionStatus, JobRecord } from './types';
+import type { BossSendResult, ExecutionStatus, JobRecord } from './types';
 
 const RECOVERABLE_STATUSES = new Set<ExecutionStatus>([
   'queued',
@@ -14,6 +14,10 @@ export function canRecoverJob(job: JobRecord, manualRiskAcknowledged: boolean): 
   }
 
   return RECOVERABLE_STATUSES.has(job.executionStatus);
+}
+
+export function shouldStopQueueAfterResult(status: BossSendResult['status']): boolean {
+  return status === 'blocked';
 }
 
 export function transitionToQueued(job: JobRecord, at: string): JobRecord {

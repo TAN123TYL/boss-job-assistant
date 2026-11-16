@@ -37,7 +37,7 @@ export function QueueStep({
   onConfirmSent,
 }: QueueStepProps) {
   const queue = approvedQueue(state.jobs);
-  const interrupted = recoverableJobs(state.jobs);
+  const attentionJobs = recoverableJobs(state.jobs);
   const sentToday = countSentToday(state.executionLogs);
   const remaining = Math.max(0, state.settings.maxDailyMessages - sentToday);
 
@@ -119,13 +119,13 @@ export function QueueStep({
         </div>
       )}
 
-      {interrupted.length > 0 ? (
+      {attentionJobs.length > 0 ? (
         <div className="recovery-list">
           <div className="execution-history__heading">
             <CircleAlert aria-hidden="true" size={16} />
-            <h3>待恢复岗位</h3>
+            <h3>失败与待处理岗位 · {attentionJobs.length}</h3>
           </div>
-          {interrupted.map((job) => (
+          {attentionJobs.map((job) => (
             <article className="recovery-item" key={job.id}>
               <div>
                 <strong>

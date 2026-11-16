@@ -66,8 +66,11 @@ flowchart LR
 - A verification page is checked before and after browser actions.
 - A queue only starts jobs in the `idle` state.
 - A send succeeds only after a new matching message bubble is observed.
-- A queue stops on the first blocked, unverified, manual-intervention, or failed
-  result.
+- A queue continues after ordinary failed, unverified, manual-intervention, or
+  missing-job results and records those jobs in the failure-and-attention list.
+- At the per-job result level, a queue stops only for a blocked verification,
+  login, or security state. Daily limits and unrecoverable browser setup errors
+  also stop execution.
 - Failed and interrupted jobs require explicit recovery before another attempt.
 - Daily limits count only successful sends for the current local day.
 - The project never requests or stores a Boss password or session cookie.

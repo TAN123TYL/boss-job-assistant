@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canRecoverJob,
   confirmManualSend,
+  shouldStopQueueAfterResult,
   transitionFromResult,
   transitionToQueued,
   transitionToRecovered,
@@ -99,5 +100,13 @@ describe('queue state machine', () => {
     expect(canRecoverJob(result, true)).toBe(true);
     expect(transitionToRecovered(result, '2026-11-14T01:02:00.000Z').executionStatus).toBe('idle');
     expect(confirmManualSend(result, '2026-11-14T01:02:00.000Z').executionStatus).toBe('sent');
+  });
+
+  it('continues after ordinary failures and stops only for a blocked page', () => {
+    expect(shouldStopQueueAfterResult('manual_required')).toBe(false);
+    expect(shouldStopQueueAfterResult('not_found')).toBe(false);
+    expect(shouldStopQueueAfterResult('chat_opened')).toBe(false);
+    expect(shouldStopQueueAfterResult('sent')).toBe(false);
+    expect(shouldStopQueueAfterResult('blocked')).toBe(true);
   });
 });

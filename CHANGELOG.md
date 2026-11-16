@@ -7,6 +7,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-11-16
+
+### Changed
+
+- Ordinary per-job send failures now move into the failure-and-attention list
+  without blocking the remaining approved queue.
+- The final queue summary reports both successful and failed job counts.
+- Verification, login-expiry, and security-blocked states remain queue-wide stop
+  conditions to avoid continuing through an unsafe Boss session.
+
+### Fixed
+
+- Failed, unverified, missing, and manually interrupted jobs remain recoverable
+  while later jobs continue automatically.
+
 ## [0.3.10] - 2026-11-16
 
 ### Fixed
