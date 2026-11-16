@@ -10,6 +10,8 @@ describe('state migration', () => {
         targetTitles: '数据分析',
         targetCities: '上海',
         minimumResumeScore: 65,
+        maxDailyMessages: 12,
+        sendIntervalSeconds: 30,
       },
       jobs: [
         {
@@ -31,7 +33,7 @@ describe('state migration', () => {
       lastScanAt: null,
     });
 
-    expect(migrated.schemaVersion).toBe(5);
+    expect(migrated.schemaVersion).toBe(6);
     expect(migrated.settings.maxScanPages).toBe(5);
     expect(migrated.settings.aiEnabled).toBe(false);
     expect(migrated.settings.hydrateJobDetails).toBe(true);
@@ -39,6 +41,8 @@ describe('state migration', () => {
     expect(migrated.settings.weeklyAvailabilityDays).toBe(4);
     expect(migrated.settings.internshipDuration).toBe('3-6个月');
     expect(migrated.settings.minimumResumeScore).toBe(70);
+    expect('maxDailyMessages' in migrated.settings).toBe(false);
+    expect('sendIntervalSeconds' in migrated.settings).toBe(false);
     expect(migrated.jobs[0]?.companyAssessment.source).toBe('page_signals');
     expect(migrated.jobs[0]?.companyPageText).toBe('');
     expect(migrated.jobs[0]?.queueError).toBe('');

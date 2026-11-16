@@ -1,4 +1,4 @@
-export const APP_SCHEMA_VERSION = 5;
+export const APP_SCHEMA_VERSION = 6;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'skipped';
 export type ExecutionStatus =
@@ -21,8 +21,6 @@ export interface ScreeningSettings {
   allowRemote: boolean;
   minimumResumeScore: number;
   minimumCompanyScore: number;
-  maxDailyMessages: number;
-  sendIntervalSeconds: number;
   maxScanPages: number;
   hydrateJobDetails: boolean;
   maxJobDetails: number;

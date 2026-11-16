@@ -69,10 +69,11 @@ flowchart LR
 - A queue continues after ordinary failed, unverified, manual-intervention, or
   missing-job results and records those jobs in the failure-and-attention list.
 - At the per-job result level, a queue stops only for a blocked verification,
-  login, or security state. Daily limits and unrecoverable browser setup errors
-  also stop execution.
+  login, or security state. Unrecoverable browser setup errors also stop
+  execution.
 - Failed and interrupted jobs require explicit recovery before another attempt.
-- Daily limits count only successful sends for the current local day.
+- Approved jobs have no daily send-count cap. Sending uses a fixed five-second
+  interval between jobs.
 - The project never requests or stores a Boss password or session cookie.
 - The message list is never acted on with synthesized row clicks. Boss may treat
   those as invalid and reload the whole page; approved chats are opened through

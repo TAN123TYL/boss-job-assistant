@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-11-16
+
+### Changed
+
+- Removed the configurable daily message cap so an approved queue is no longer
+  stopped by a daily send count.
+- Changed the greeting interval to a fixed five seconds between approved jobs.
+- Upgraded local state to schema v6 and removed the obsolete daily-limit and
+  interval fields during migration from v1-v5.
+
 ## [0.3.11] - 2026-11-16
 
 ### Changed

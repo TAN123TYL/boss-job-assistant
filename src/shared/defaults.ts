@@ -9,8 +9,6 @@ export const DEFAULT_SETTINGS: ScreeningSettings = {
   allowRemote: true,
   minimumResumeScore: 70,
   minimumCompanyScore: 55,
-  maxDailyMessages: 12,
-  sendIntervalSeconds: 30,
   maxScanPages: 5,
   hydrateJobDetails: true,
   maxJobDetails: 30,

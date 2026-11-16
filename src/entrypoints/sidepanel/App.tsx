@@ -31,7 +31,7 @@ import {
   waitForChatTabAfterAction,
 } from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
-import { countSentToday } from '../../shared/execution';
+import { MESSAGE_SEND_INTERVAL_SECONDS } from '../../shared/execution';
 import { buildCandidateProfile } from '../../shared/matching';
 import {
   canRecoverJob,
@@ -809,14 +809,9 @@ export function App() {
           break;
         }
 
-        if (countSentToday(workingState.executionLogs) >= state.settings.maxDailyMessages) {
-          stoppedReason = '已达到今日发送上限';
-          break;
-        }
-
         if (index > 0) {
-          setExecutionProgress(`等待 ${state.settings.sendIntervalSeconds} 秒后发送下一个岗位`);
-          await delay(state.settings.sendIntervalSeconds * 1_000);
+          setExecutionProgress(`等待 ${MESSAGE_SEND_INTERVAL_SECONDS} 秒后发送下一个岗位`);
+          await delay(MESSAGE_SEND_INTERVAL_SECONDS * 1_000);
         }
 
         const beforeQueued = workingState.jobs.find((job) => job.id === queueItem.id);
@@ -1007,7 +1002,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.11</span>
+        <span>v0.3.12</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

@@ -3,8 +3,9 @@ import { createDefaultState, DEFAULT_SETTINGS } from './defaults';
 import { APP_SCHEMA_VERSION } from './types';
 import type { AppState, CompanyAssessment, JobRecord, ScreeningSettings } from './types';
 
-const STORAGE_KEY = 'boss-job-assistant:state:v5';
+const STORAGE_KEY = 'boss-job-assistant:state:v6';
 const LEGACY_STORAGE_KEYS = [
+  'boss-job-assistant:state:v5',
   'boss-job-assistant:state:v4',
   'boss-job-assistant:state:v3',
   'boss-job-assistant:state:v2',
@@ -16,9 +17,12 @@ function objectValue(value: unknown): Record<string, unknown> {
 }
 
 function migrateSettings(value: unknown): ScreeningSettings {
+  const legacySettings = { ...objectValue(value) };
+  delete legacySettings.maxDailyMessages;
+  delete legacySettings.sendIntervalSeconds;
   return {
     ...DEFAULT_SETTINGS,
-    ...objectValue(value),
+    ...legacySettings,
   } as ScreeningSettings;
 }
 

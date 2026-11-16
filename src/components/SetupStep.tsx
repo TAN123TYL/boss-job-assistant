@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Bot, Database, Download, FileText, Globe2, Save, Upload, Wifi } from 'lucide-react';
 import { testAiConnection } from '../shared/ai';
+import { MESSAGE_SEND_INTERVAL_SECONDS } from '../shared/execution';
 import { extractResumeText } from '../shared/resume-parser';
 import type { ScreeningSettings } from '../shared/types';
 import { splitList } from '../shared/utils';
@@ -228,23 +229,11 @@ export function SetupStep({
           />
         </label>
         <label className="field">
-          <span className="field__label">每日上限</span>
+          <span className="field__label">打招呼间隔</span>
           <input
-            type="number"
-            min="1"
-            max="50"
-            value={draft.maxDailyMessages}
-            onChange={(event) => update('maxDailyMessages', Number(event.target.value))}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">发送间隔（秒）</span>
-          <input
-            type="number"
-            min="10"
-            max="300"
-            value={draft.sendIntervalSeconds}
-            onChange={(event) => update('sendIntervalSeconds', Number(event.target.value))}
+            type="text"
+            value={`固定 ${MESSAGE_SEND_INTERVAL_SECONDS} 秒，每日发送不限量`}
+            readOnly
           />
         </label>
       </div>
@@ -477,8 +466,6 @@ export function SetupStep({
               maxScanPages: Math.max(1, Math.min(30, draft.maxScanPages)),
               maxJobDetails: Math.max(1, Math.min(100, draft.maxJobDetails)),
               weeklyAvailabilityDays: Math.max(0, Math.min(7, draft.weeklyAvailabilityDays)),
-              maxDailyMessages: Math.max(1, Math.min(50, draft.maxDailyMessages)),
-              sendIntervalSeconds: Math.max(10, Math.min(300, draft.sendIntervalSeconds)),
             });
           } finally {
             setSaving(false);

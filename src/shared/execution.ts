@@ -1,5 +1,7 @@
 import type { ExecutionLog } from './types';
 
+export const MESSAGE_SEND_INTERVAL_SECONDS = 5;
+
 export function dateKey(value: Date | string): string {
   const date = typeof value === 'string' ? new Date(value) : value;
   const year = date.getFullYear();

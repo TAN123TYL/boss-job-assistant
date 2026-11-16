@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { countSentToday, dateKey } from './execution';
+import { countSentToday, dateKey, MESSAGE_SEND_INTERVAL_SECONDS } from './execution';
 import type { ExecutionLog } from './types';
 
-describe('execution rate limit', () => {
+describe('execution statistics', () => {
+  it('uses a fixed five-second interval between approved messages', () => {
+    expect(MESSAGE_SEND_INTERVAL_SECONDS).toBe(5);
+  });
+
   it('counts only successful messages for the local calendar day', () => {
     const logs: ExecutionLog[] = [
       {

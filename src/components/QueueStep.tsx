@@ -11,7 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { approvedQueue, recoverableJobs } from '../shared/approval';
-import { countSentToday } from '../shared/execution';
+import { countSentToday, MESSAGE_SEND_INTERVAL_SECONDS } from '../shared/execution';
 import type { AppState } from '../shared/types';
 import { EmptyState } from './EmptyState';
 
@@ -39,7 +39,6 @@ export function QueueStep({
   const queue = approvedQueue(state.jobs);
   const attentionJobs = recoverableJobs(state.jobs);
   const sentToday = countSentToday(state.executionLogs);
-  const remaining = Math.max(0, state.settings.maxDailyMessages - sentToday);
 
   return (
     <section className="step-panel" aria-labelledby="queue-title">
@@ -61,13 +60,13 @@ export function QueueStep({
         </div>
         <div>
           <Clock3 aria-hidden="true" size={18} />
-          <span>今日剩余</span>
-          <strong>{remaining}</strong>
+          <span>今日已发</span>
+          <strong>{sentToday}</strong>
         </div>
         <div>
           <ShieldCheck aria-hidden="true" size={18} />
           <span>发送间隔</span>
-          <strong>{state.settings.sendIntervalSeconds}s</strong>
+          <strong>{MESSAGE_SEND_INTERVAL_SECONDS}s</strong>
         </div>
       </div>
 
@@ -188,7 +187,7 @@ export function QueueStep({
       <button
         className="button button--primary button--wide"
         type="button"
-        disabled={queue.length === 0 || !connected || remaining === 0 || busy}
+        disabled={queue.length === 0 || !connected || busy}
         onClick={() => void onExecute()}
       >
         <Send aria-hidden="true" size={16} />
