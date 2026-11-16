@@ -4,6 +4,7 @@ import { APP_SCHEMA_VERSION } from './types';
 import type { AppState, CompanyAssessment, JobRecord, ScreeningSettings } from './types';
 
 const STORAGE_KEY = 'boss-job-assistant:state:v6';
+const STORAGE_READ_TIMEOUT_MS = 3_000;
 const LEGACY_STORAGE_KEYS = [
   'boss-job-assistant:state:v5',
   'boss-job-assistant:state:v4',
@@ -11,6 +12,24 @@ const LEGACY_STORAGE_KEYS = [
   'boss-job-assistant:state:v2',
   'boss-job-assistant:state:v1',
 ] as const;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error('读取本地数据超时，请关闭并重新打开侧边栏')),
+      timeoutMs,
+    );
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -115,20 +134,36 @@ function hasStateShape(value: unknown): boolean {
 }
 
 export async function loadAppState(): Promise<AppState> {
-  const stored = await browser.storage.local.get([STORAGE_KEY, ...LEGACY_STORAGE_KEYS]);
-  const current = stored[STORAGE_KEY];
+  const stored = await withTimeout(
+    browser.storage.local.get([STORAGE_KEY, ...LEGACY_STORAGE_KEYS]),
+    STORAGE_READ_TIMEOUT_MS,
+  );
+  let migrationError: unknown;
 
-  if (current && hasStateShape(current)) {
-    return migrateAppState(current);
+  for (const key of [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]) {
+    const candidate = stored[key];
+    if (!candidate || !hasStateShape(candidate)) {
+      continue;
+    }
+
+    try {
+      const migrated = migrateAppState(candidate);
+      if (key !== STORAGE_KEY) {
+        await browser.storage.local.set({ [STORAGE_KEY]: migrated }).catch((error: unknown) => {
+          console.warn('Unable to persist migrated Boss assistant state', error);
+        });
+      }
+      return migrated;
+    } catch (error) {
+      migrationError = error;
+      console.warn(`Unable to migrate Boss assistant state from ${key}`, error);
+    }
   }
 
-  for (const legacyKey of LEGACY_STORAGE_KEYS) {
-    const legacy = stored[legacyKey];
-    if (legacy && hasStateShape(legacy)) {
-      const migrated = migrateAppState(legacy);
-      await browser.storage.local.set({ [STORAGE_KEY]: migrated });
-      return migrated;
-    }
+  if (migrationError) {
+    throw new Error('本地保存的数据无法迁移，请使用备份恢复或重新保存筛选方案', {
+      cause: migrationError,
+    });
   }
 
   return createDefaultState();

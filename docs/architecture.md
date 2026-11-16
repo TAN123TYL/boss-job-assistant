@@ -33,7 +33,9 @@ be updated first.
 ### Extension UI
 
 `src/entrypoints/sidepanel` renders the four-step workflow. UI state is stored
-with `browser.storage.local`; no remote backend is used.
+with `browser.storage.local`; no remote backend is used. A storage read has a
+three-second timeout and each schema version is migrated independently. Invalid
+state falls back to a visible temporary workspace instead of blocking the panel.
 
 ### Lifecycle
 

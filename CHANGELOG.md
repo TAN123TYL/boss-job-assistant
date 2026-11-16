@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-11-16
+
+### Fixed
+
+- Prevented the side panel from remaining indefinitely on the local-state
+  loading screen when browser storage is slow, invalidated, or cannot migrate.
+- Added a three-second storage-read timeout, per-version migration fallback, and
+  an explicit error notice with a temporary default workspace.
+
 ## [0.3.12] - 2026-11-16
 
 ### Changed

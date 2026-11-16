@@ -31,6 +31,7 @@ import {
   waitForChatTabAfterAction,
 } from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
+import { createDefaultState } from '../../shared/defaults';
 import { MESSAGE_SEND_INTERVAL_SECONDS } from '../../shared/execution';
 import { buildCandidateProfile } from '../../shared/matching';
 import {
@@ -149,12 +150,25 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    void loadAppState().then((loadedState) => {
-      if (!cancelled) {
-        setState(loadedState);
-        void refreshPageStatus();
-      }
-    });
+    void loadAppState()
+      .then((loadedState) => {
+        if (!cancelled) {
+          setState(loadedState);
+          void refreshPageStatus();
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState(createDefaultState());
+          setNotice({
+            kind: 'error',
+            message: `本地数据读取失败，已用临时空白方案打开：${
+              error instanceof Error ? error.message : '未知错误'
+            }`,
+          });
+          void refreshPageStatus();
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -1002,7 +1016,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.12</span>
+        <span>v0.3.13</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>
