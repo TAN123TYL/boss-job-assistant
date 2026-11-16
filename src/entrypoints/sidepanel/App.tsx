@@ -1016,7 +1016,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.13</span>
+        <span>v0.3.14</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

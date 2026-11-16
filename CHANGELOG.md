@@ -7,6 +7,20 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-11-16
+
+### Fixed
+
+- Recovered from Chrome `storage.local` quota exhaustion instead of stopping the
+  approved queue.
+- Removed obsolete v1-v5 state keys after successful loading or saving.
+- Added three progressively smaller state-compaction fallbacks that retain
+  approved, pending, and failed jobs while trimming historical payloads.
+
+### Security
+
+- Added the Chrome `unlimitedStorage` permission for accumulated local job data.
+
 ## [0.3.13] - 2026-11-16
 
 ### Fixed

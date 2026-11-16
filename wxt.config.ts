@@ -7,8 +7,16 @@ export default defineConfig({
     name: 'Boss 岗位助手',
     short_name: 'Boss 岗位助手',
     description: '基于简历匹配、城市过滤、AI 复核和公司全网核验的 Boss 直聘求职助手。',
-    version: '0.3.13',
-    permissions: ['storage', 'sidePanel', 'activeTab', 'tabs', 'alarms', 'notifications'],
+    version: '0.3.14',
+    permissions: [
+      'storage',
+      'unlimitedStorage',
+      'sidePanel',
+      'activeTab',
+      'tabs',
+      'alarms',
+      'notifications',
+    ],
     host_permissions: ['https://www.zhipin.com/*'],
     icons: {
       16: 'icon/16.png',

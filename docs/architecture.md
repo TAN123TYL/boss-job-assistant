@@ -36,6 +36,9 @@ be updated first.
 with `browser.storage.local`; no remote backend is used. A storage read has a
 three-second timeout and each schema version is migrated independently. Invalid
 state falls back to a visible temporary workspace instead of blocking the panel.
+Legacy state keys are removed after migration. If the browser still reports a
+quota error, nonessential historical payloads are compacted and retried before
+the save is treated as failed.
 
 ### Lifecycle
 
