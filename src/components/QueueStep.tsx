@@ -3,11 +3,13 @@ import {
   CircleAlert,
   CircleStop,
   Clock3,
+  ExternalLink,
   History,
   LockKeyhole,
   RotateCcw,
   Send,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import { approvedQueue, recoverableJobs } from '../shared/approval';
 import { countSentToday } from '../shared/execution';
@@ -20,9 +22,17 @@ interface QueueStepProps {
   busy: boolean;
   onExecute: (secondConfirmation: boolean) => Promise<void>;
   onRecover: (jobId: string, manualRiskAcknowledged: boolean) => Promise<void>;
+  onDismiss: (jobId: string) => Promise<void>;
 }
 
-export function QueueStep({ state, connected, busy, onExecute, onRecover }: QueueStepProps) {
+export function QueueStep({
+  state,
+  connected,
+  busy,
+  onExecute,
+  onRecover,
+  onDismiss,
+}: QueueStepProps) {
   const [confirming, setConfirming] = useState(false);
   const queue = approvedQueue(state.jobs);
   const interrupted = recoverableJobs(state.jobs);
@@ -76,6 +86,32 @@ export function QueueStep({ state, connected, busy, onExecute, onRecover }: Queu
                   {job.company} · {job.finalScore} 分
                 </p>
               </div>
+              <div className="queue-item__actions">
+                <a
+                  className="icon-button"
+                  href={job.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`打开 ${job.title} 原岗位`}
+                  title="打开原岗位"
+                >
+                  <ExternalLink aria-hidden="true" size={14} />
+                </a>
+                <button
+                  className="icon-button"
+                  type="button"
+                  disabled={busy}
+                  aria-label={`将 ${job.title} 标记为岗位失效`}
+                  title="岗位失效，移出队列"
+                  onClick={() => {
+                    if (window.confirm(`确认 ${job.company} 的岗位已失效并移出队列？`)) {
+                      void onDismiss(job.id);
+                    }
+                  }}
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -95,15 +131,41 @@ export function QueueStep({ state, connected, busy, onExecute, onRecover }: Queu
                 </strong>
                 <p>{job.queueError || `状态：${job.executionStatus}，需要人工核对后再恢复`}</p>
               </div>
-              <button
-                className="button button--ghost button--compact"
-                type="button"
-                disabled={busy}
-                onClick={() => void onRecover(job.id, job.executionStatus === 'manual_required')}
-              >
-                <RotateCcw aria-hidden="true" size={14} />
-                {job.executionStatus === 'manual_required' ? '核对后恢复' : '恢复重试'}
-              </button>
+              <div className="recovery-item__actions">
+                <a
+                  className="icon-button"
+                  href={job.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`打开 ${job.title} 原岗位`}
+                  title="打开原岗位"
+                >
+                  <ExternalLink aria-hidden="true" size={14} />
+                </a>
+                <button
+                  className="button button--ghost button--compact"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onRecover(job.id, job.executionStatus === 'manual_required')}
+                >
+                  <RotateCcw aria-hidden="true" size={14} />
+                  {job.executionStatus === 'manual_required' ? '核对后恢复' : '恢复重试'}
+                </button>
+                <button
+                  className="icon-button"
+                  type="button"
+                  disabled={busy}
+                  aria-label={`将 ${job.title} 标记为岗位失效`}
+                  title="岗位失效，移出队列"
+                  onClick={() => {
+                    if (window.confirm(`确认 ${job.company} 的岗位已失效并移出队列？`)) {
+                      void onDismiss(job.id);
+                    }
+                  }}
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                </button>
+              </div>
             </article>
           ))}
         </div>

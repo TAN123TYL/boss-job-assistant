@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-15
+
+### Added
+
+- Added automatic fallback to the saved job URL when an approved job is no
+  longer present in the current Boss list.
+- Reuses an already-open matching job tab or opens a background tab, then retries
+  sending through the job detail page.
+- Added queue actions to open the original job page and mark an offline job as
+  invalid so it no longer blocks the queue.
+
 ## [0.3.1] - 2026-11-15
 
 ### Changed

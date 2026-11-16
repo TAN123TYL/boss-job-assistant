@@ -18,7 +18,12 @@ import { SetupStep } from '../../components/SetupStep';
 import { enhanceJobWithAi } from '../../shared/ai';
 import { approvedQueue, canExecuteQueue } from '../../shared/approval';
 import { backupToJson, parseAppBackup } from '../../shared/backup';
-import { sendContentRequest } from '../../shared/browser-tab';
+import {
+  closeTab,
+  getOrCreateJobTab,
+  sendContentRequest,
+  sendContentRequestToTab,
+} from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
 import { countSentToday } from '../../shared/execution';
 import { buildCandidateProfile } from '../../shared/matching';
@@ -562,6 +567,34 @@ export function App() {
     });
   };
 
+  const dismissQueuedJob = async (jobId: string) => {
+    if (!state) {
+      return;
+    }
+    const job = state.jobs.find((candidate) => candidate.id === jobId);
+    if (!job || job.executionStatus === 'sent') {
+      setNotice({
+        kind: 'error',
+        message: '已发送岗位不能标记为失效',
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const nextState = updateJob(state, jobId, (candidate) => ({
+      ...candidate,
+      approvalStatus: 'skipped',
+      executionStatus: 'idle',
+      queueError: '岗位页面已失效，已从发送队列移除',
+      updatedAt: now,
+    }));
+    await persist(nextState);
+    setNotice({
+      kind: 'info',
+      message: '岗位已标记为失效并移出发送队列',
+    });
+  };
+
   const recoverJob = async (jobId: string, manualRiskAcknowledged: boolean) => {
     if (!state) {
       return;
@@ -582,6 +615,57 @@ export function App() {
       kind: 'info',
       message: '岗位已恢复到待发送状态，请重新确认后执行',
     });
+  };
+
+  const sendApprovedGreeting = async (job: JobRecord): Promise<BossSendResult> => {
+    let response = await sendContentRequest({
+      type: 'BOSS_SEND_GREETING',
+      url: job.sourceUrl,
+      text: job.selectedGreeting,
+    });
+    if (!response.ok) {
+      throw new Error(response.error);
+    }
+    if (!('result' in response)) {
+      throw new Error('页面未返回发送结果');
+    }
+
+    if (response.result.status !== 'not_found') {
+      return response.result;
+    }
+
+    const fallbackTab = await getOrCreateJobTab(job.sourceUrl);
+    try {
+      response = await sendContentRequestToTab(
+        fallbackTab.tabId,
+        {
+          type: 'BOSS_SEND_GREETING',
+          url: job.sourceUrl,
+          text: job.selectedGreeting,
+        },
+        45_000,
+      );
+      if (!response.ok) {
+        throw new Error(response.error);
+      }
+      if (!('result' in response)) {
+        throw new Error('原岗位页面未返回发送结果');
+      }
+
+      return {
+        status: response.result.status,
+        message:
+          response.result.status === 'sent'
+            ? `当前列表未找到岗位，已通过原岗位链接发送并确认气泡：${response.result.message}`
+            : `当前列表未找到岗位，已打开原岗位链接重试：${response.result.message}`,
+      };
+    } finally {
+      if (fallbackTab.created && response.ok && 'result' in response) {
+        if (response.result.status === 'sent') {
+          await closeTab(fallbackTab.tabId);
+        }
+      }
+    }
   };
 
   const executeQueue = async (secondConfirmation: boolean) => {
@@ -643,18 +727,7 @@ export function App() {
 
         let result: BossSendResult;
         try {
-          const response = await sendContentRequest({
-            type: 'BOSS_SEND_GREETING',
-            url: queueItem.sourceUrl,
-            text: queueItem.selectedGreeting,
-          });
-          if (!response.ok) {
-            throw new Error(response.error);
-          }
-          if (!('result' in response)) {
-            throw new Error('页面未返回发送结果');
-          }
-          result = response.result;
+          result = await sendApprovedGreeting(queueItem);
         } catch (error) {
           result = {
             status: 'manual_required',
@@ -798,12 +871,13 @@ export function App() {
             busy={busyAction === 'execute'}
             onExecute={executeQueue}
             onRecover={recoverJob}
+            onDismiss={dismissQueuedJob}
           />
         ) : null}
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.1</span>
+        <span>v0.3.2</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

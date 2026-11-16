@@ -1390,11 +1390,23 @@ a {
   min-width: 0;
   padding: 9px 10px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   border: 1px solid var(--border-soft);
   border-radius: 6px;
+}
+
+.queue-item__actions,
+.recovery-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.queue-item__actions .icon-button,
+.recovery-item__actions .icon-button {
+  text-decoration: none;
 }
 
 .queue-item > div {
@@ -1498,6 +1510,12 @@ a {
   color: var(--danger);
   font-size: 9px;
   line-height: 1.45;
+}
+
+.recovery-item__actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .execution-history__heading {
@@ -1632,6 +1650,15 @@ a {
 
   .review-actions {
     grid-template-columns: 1fr;
+  }
+
+  .recovery-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recovery-item__actions {
+    justify-content: flex-start;
   }
 
   .section-heading {
