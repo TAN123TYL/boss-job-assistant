@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-16
+
+### Added
+
+- Added a manual “confirmed sent” action for jobs whose browser message channel
+  closed after a possible send.
+- Confirmed manual sends are recorded in execution history and never re-enter the
+  automatic send queue.
+
 ## [0.3.3] - 2026-11-16
 
 ### Fixed

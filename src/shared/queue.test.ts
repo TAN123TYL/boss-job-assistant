@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canRecoverJob,
+  confirmManualSend,
   transitionFromResult,
   transitionToQueued,
   transitionToRecovered,
@@ -97,5 +98,6 @@ describe('queue state machine', () => {
     expect(canRecoverJob(result, false)).toBe(false);
     expect(canRecoverJob(result, true)).toBe(true);
     expect(transitionToRecovered(result, '2026-11-14T01:02:00.000Z').executionStatus).toBe('idle');
+    expect(confirmManualSend(result, '2026-11-14T01:02:00.000Z').executionStatus).toBe('sent');
   });
 });

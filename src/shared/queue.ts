@@ -87,3 +87,16 @@ export function transitionToRecovered(job: JobRecord, at: string): JobRecord {
     updatedAt: at,
   };
 }
+
+export function confirmManualSend(job: JobRecord, at: string): JobRecord {
+  if (job.executionStatus !== 'manual_required') {
+    throw new Error('Only manually unverified jobs can be confirmed as sent');
+  }
+
+  return {
+    ...job,
+    executionStatus: 'sent',
+    queueError: '',
+    updatedAt: at,
+  };
+}

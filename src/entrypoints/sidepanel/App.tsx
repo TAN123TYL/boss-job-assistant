@@ -29,6 +29,7 @@ import { countSentToday } from '../../shared/execution';
 import { buildCandidateProfile } from '../../shared/matching';
 import {
   canRecoverJob,
+  confirmManualSend,
   transitionFromResult,
   transitionToQueued,
   transitionToRecovered,
@@ -617,6 +618,40 @@ export function App() {
     });
   };
 
+  const confirmManuallySentJob = async (jobId: string) => {
+    if (!state) {
+      return;
+    }
+    const job = state.jobs.find((candidate) => candidate.id === jobId);
+    if (!job || job.executionStatus !== 'manual_required') {
+      setNotice({
+        kind: 'error',
+        message: '只有“可能已发送”的岗位可以人工确认',
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const log: ExecutionLog = {
+      id: createId(),
+      jobId: job.id,
+      company: job.company,
+      title: job.title,
+      at: now,
+      status: 'sent',
+      message: '人工打开 Boss 会话后确认消息已发送',
+    };
+    const nextState = updateJob(state, jobId, (candidate) => confirmManualSend(candidate, now));
+    await persist({
+      ...nextState,
+      executionLogs: [...nextState.executionLogs, log],
+    });
+    setNotice({
+      kind: 'success',
+      message: '已人工确认发送，不会再次进入发送队列',
+    });
+  };
+
   const sendApprovedGreeting = async (job: JobRecord): Promise<BossSendResult> => {
     const fallbackTab = await getOrCreateJobTab(job.sourceUrl);
     let shouldCloseTab = false;
@@ -856,12 +891,13 @@ export function App() {
             onExecute={executeQueue}
             onRecover={recoverJob}
             onDismiss={dismissQueuedJob}
+            onConfirmSent={confirmManuallySentJob}
           />
         ) : null}
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.3</span>
+        <span>v0.3.4</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   CircleAlert,
+  CheckCircle2,
   CircleStop,
   Clock3,
   ExternalLink,
@@ -23,6 +24,7 @@ interface QueueStepProps {
   onExecute: (secondConfirmation: boolean) => Promise<void>;
   onRecover: (jobId: string, manualRiskAcknowledged: boolean) => Promise<void>;
   onDismiss: (jobId: string) => Promise<void>;
+  onConfirmSent: (jobId: string) => Promise<void>;
 }
 
 export function QueueStep({
@@ -32,6 +34,7 @@ export function QueueStep({
   onExecute,
   onRecover,
   onDismiss,
+  onConfirmSent,
 }: QueueStepProps) {
   const [confirming, setConfirming] = useState(false);
   const queue = approvedQueue(state.jobs);
@@ -142,6 +145,18 @@ export function QueueStep({
                 >
                   <ExternalLink aria-hidden="true" size={14} />
                 </a>
+                {job.executionStatus === 'manual_required' ? (
+                  <button
+                    className="button button--primary button--compact"
+                    type="button"
+                    disabled={busy}
+                    title="打开 Boss 会话确认消息已存在后使用"
+                    onClick={() => void onConfirmSent(job.id)}
+                  >
+                    <CheckCircle2 aria-hidden="true" size={14} />
+                    确认已发送
+                  </button>
+                ) : null}
                 <button
                   className="button button--ghost button--compact"
                   type="button"
