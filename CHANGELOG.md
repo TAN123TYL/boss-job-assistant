@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-18
+
+### Fixed
+
+- Screening-page pending counts and pending job cards now exclude jobs that were
+  already approved or skipped.
+
 ## [0.4.0] - 2026-11-18
 
 ### Added

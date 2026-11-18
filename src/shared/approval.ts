@@ -1,5 +1,9 @@
 import type { JobRecord } from './types';
 
+export function pendingReviewJobs(jobs: JobRecord[]): JobRecord[] {
+  return jobs.filter((job) => job.stage === 'ready_for_review' && job.approvalStatus === 'pending');
+}
+
 export function isApprovedForQueue(job: JobRecord): boolean {
   return (
     job.stage === 'ready_for_review' &&

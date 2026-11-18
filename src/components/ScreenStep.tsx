@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Square,
 } from 'lucide-react';
+import { pendingReviewJobs } from '../shared/approval';
 import { canReevaluateRejectedJob } from '../shared/screening';
 import type { JobRecord, ScanProgress } from '../shared/types';
 import { EmptyState } from './EmptyState';
@@ -36,7 +37,7 @@ export function ScreenStep({
   onCancel,
 }: ScreenStepProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const readyJobs = jobs.filter((job) => job.stage === 'ready_for_review');
+  const pendingJobs = pendingReviewJobs(jobs);
   const reevaluatableCount = jobs.filter(canReevaluateRejectedJob).length;
   const rejectedJobs = [...jobs]
     .filter((job) => job.stage !== 'ready_for_review')
@@ -127,7 +128,7 @@ export function ScreenStep({
         <article className="metric">
           <BriefcaseBusiness aria-hidden="true" size={18} />
           <span>待确认</span>
-          <strong>{readyJobs.length}</strong>
+          <strong>{pendingJobs.length}</strong>
         </article>
         <article className="metric">
           <MapPin aria-hidden="true" size={18} />
@@ -152,7 +153,7 @@ export function ScreenStep({
         </p>
       ) : null}
 
-      {readyJobs.length === 0 ? (
+      {pendingJobs.length === 0 ? (
         <EmptyState
           icon={Radar}
           title="尚无待确认岗位"
@@ -160,7 +161,7 @@ export function ScreenStep({
         />
       ) : (
         <div className="compact-list">
-          {[...readyJobs]
+          {[...pendingJobs]
             .sort((left, right) => right.finalScore - left.finalScore)
             .slice(0, 8)
             .map((job) => (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approvedQueue, canExecuteQueue, isApprovedForQueue } from './approval';
+import { approvedQueue, canExecuteQueue, isApprovedForQueue, pendingReviewJobs } from './approval';
 import type { JobRecord } from './types';
 
 function createJob(overrides: Partial<JobRecord> = {}): JobRecord {
@@ -64,6 +64,16 @@ function createJob(overrides: Partial<JobRecord> = {}): JobRecord {
 }
 
 describe('approval gate', () => {
+  it('removes approved and skipped jobs from pending review counts', () => {
+    const jobs = [
+      createJob({ id: 'pending', approvalStatus: 'pending' }),
+      createJob({ id: 'approved', approvalStatus: 'approved' }),
+      createJob({ id: 'skipped', approvalStatus: 'skipped' }),
+    ];
+
+    expect(pendingReviewJobs(jobs).map((job) => job.id)).toEqual(['pending']);
+  });
+
   it('only includes explicitly approved jobs', () => {
     const pending = createJob({ id: 'pending', approvalStatus: 'pending' });
     const approved = createJob({ id: 'approved' });

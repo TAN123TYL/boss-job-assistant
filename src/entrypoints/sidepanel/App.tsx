@@ -16,7 +16,7 @@ import { ReviewStep } from '../../components/ReviewStep';
 import { ScreenStep } from '../../components/ScreenStep';
 import { SetupStep } from '../../components/SetupStep';
 import { enhanceJobWithAi } from '../../shared/ai';
-import { approvedQueue, canExecuteQueue } from '../../shared/approval';
+import { approvedQueue, canExecuteQueue, pendingReviewJobs } from '../../shared/approval';
 import { backupToJson, parseAppBackup } from '../../shared/backup';
 import {
   closeTab,
@@ -925,9 +925,7 @@ export function App() {
   }
 
   const connected = Boolean(pageStatus?.connected && !pageStatus.isVerificationPage);
-  const pendingReview = state.jobs.filter(
-    (job) => job.stage === 'ready_for_review' && job.approvalStatus === 'pending',
-  ).length;
+  const pendingReview = pendingReviewJobs(state.jobs).length;
   const approvedCount = approvedQueue(state.jobs).length;
 
   return (
@@ -1022,7 +1020,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.4.0</span>
+        <span>v0.4.1</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>
