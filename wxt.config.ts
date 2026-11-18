@@ -7,7 +7,7 @@ export default defineConfig({
     name: 'Boss 岗位助手',
     short_name: 'Boss 岗位助手',
     description: '基于简历匹配、城市过滤、AI 复核和公司全网核验的 Boss 直聘求职助手。',
-    version: '0.3.14',
+    version: '0.4.0',
     permissions: [
       'storage',
       'unlimitedStorage',

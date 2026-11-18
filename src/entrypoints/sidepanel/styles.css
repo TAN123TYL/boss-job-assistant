@@ -319,6 +319,79 @@ a {
   font-size: 12px;
 }
 
+.resume-library-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.resume-library-heading > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.resume-library-heading strong {
+  font-size: 12px;
+}
+
+.resume-library-heading span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.resume-list {
+  display: grid;
+  gap: 10px;
+}
+
+.resume-card {
+  min-width: 0;
+  padding: 12px;
+  display: grid;
+  gap: 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-muted);
+}
+
+.resume-card__heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.resume-card__heading > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.resume-card__heading svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.resume-card__heading strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-card__heading span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 9px;
+}
+
 .field input,
 .field textarea {
   width: 100%;

@@ -1,10 +1,27 @@
 import { useRef, useState } from 'react';
-import { Bot, Database, Download, FileText, Globe2, Save, Upload, Wifi } from 'lucide-react';
+import {
+  Bot,
+  Database,
+  Download,
+  FileText,
+  Globe2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  Wifi,
+} from 'lucide-react';
 import { testAiConnection } from '../shared/ai';
+import {
+  createEmptyResume,
+  DEFAULT_RESUME_SLOT_COUNT,
+  MAXIMUM_RESUME_COUNT,
+  MINIMUM_ACTIVE_RESUME_COUNT,
+} from '../shared/defaults';
 import { MESSAGE_SEND_INTERVAL_SECONDS } from '../shared/execution';
 import { extractResumeText } from '../shared/resume-parser';
-import type { ScreeningSettings } from '../shared/types';
-import { splitList } from '../shared/utils';
+import type { ResumeDocument, ScreeningSettings } from '../shared/types';
+import { createId, splitList } from '../shared/utils';
 import { CitySelect } from './CitySelect';
 
 interface SetupStepProps {
@@ -24,24 +41,64 @@ export function SetupStep({
 }: SetupStepProps) {
   const [draft, setDraft] = useState(settings);
   const [saving, setSaving] = useState(false);
-  const [parsing, setParsing] = useState(false);
+  const [parsingResumeId, setParsingResumeId] = useState<string | null>(null);
   const [fileMessage, setFileMessage] = useState('');
   const [fileError, setFileError] = useState('');
   const [aiTestMessage, setAiTestMessage] = useState('');
   const [testingAi, setTestingAi] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
+  const pendingResumeIdRef = useRef<string | null>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
 
   const update = <Key extends keyof ScreeningSettings>(key: Key, value: ScreeningSettings[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const handleResumeFile = async (file: File | undefined) => {
-    if (!file) {
+  const updateResume = (resumeId: string, patch: Partial<ResumeDocument>) => {
+    setDraft((current) => ({
+      ...current,
+      resumes: current.resumes.map((resume) =>
+        resume.id === resumeId ? { ...resume, ...patch } : resume,
+      ),
+    }));
+  };
+
+  const addResume = () => {
+    setDraft((current) => {
+      if (current.resumes.length >= MAXIMUM_RESUME_COUNT) {
+        return current;
+      }
+      const index = current.resumes.length;
+      return {
+        ...current,
+        resumes: [
+          ...current.resumes,
+          createEmptyResume(index, {
+            id: createId(),
+            name: `简历 ${index + 1}`,
+          }),
+        ],
+      };
+    });
+  };
+
+  const removeResume = (resumeId: string) => {
+    setDraft((current) =>
+      current.resumes.length <= DEFAULT_RESUME_SLOT_COUNT
+        ? current
+        : {
+            ...current,
+            resumes: current.resumes.filter((resume) => resume.id !== resumeId),
+          },
+    );
+  };
+
+  const handleResumeFile = async (file: File | undefined, resumeId: string | null) => {
+    if (!file || !resumeId) {
       return;
     }
 
-    setParsing(true);
+    setParsingResumeId(resumeId);
     setFileError('');
     setFileMessage('');
     try {
@@ -49,16 +106,27 @@ export function SetupStep({
       if (parsed.text.length < 30) {
         throw new Error('简历可提取文字过少，请检查文件或直接粘贴文本');
       }
-      update('resumeText', parsed.text);
+      const existing = draft.resumes.find((resume) => resume.id === resumeId);
+      const inferredName = file.name.replace(/\.[^.]+$/u, '').trim();
+      updateResume(resumeId, {
+        text: parsed.text,
+        fileName: file.name,
+        name:
+          existing?.name.trim() && !/^简历\s*\d+$/u.test(existing.name)
+            ? existing.name
+            : inferredName || existing?.name || '简历',
+        updatedAt: new Date().toISOString(),
+      });
       setFileMessage(
         `已导入 ${file.name}${parsed.warnings.length > 0 ? `：${parsed.warnings.join('；')}` : ''}`,
       );
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '简历解析失败');
     } finally {
-      setParsing(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      setParsingResumeId(null);
+      pendingResumeIdRef.current = null;
+      if (resumeFileInputRef.current) {
+        resumeFileInputRef.current.value = '';
       }
     }
   };
@@ -98,8 +166,9 @@ export function SetupStep({
     }
   };
 
+  const validResumeCount = draft.resumes.filter((resume) => resume.text.trim().length >= 30).length;
   const isValid =
-    draft.resumeText.trim().length >= 30 &&
+    validResumeCount >= MINIMUM_ACTIVE_RESUME_COUNT &&
     splitList(draft.targetTitles).length > 0 &&
     splitList(draft.targetCities).length > 0;
 
@@ -115,39 +184,107 @@ export function SetupStep({
         </span>
       </div>
 
-      <label className="field field--large">
-        <span className="field__label">
-          简历内容
-          <small>{draft.resumeText.length.toLocaleString('zh-CN')} 字</small>
-        </span>
-        <textarea
-          value={draft.resumeText}
-          onChange={(event) => update('resumeText', event.target.value)}
-          placeholder="导入 PDF、DOCX 或粘贴完整简历，保留技能、项目、量化成果和工作时间。"
-          rows={10}
-        />
-      </label>
+      <div className="resume-library-heading">
+        <div>
+          <strong>多简历筛选</strong>
+          <span>
+            已填写 {validResumeCount} 份，当前 {draft.resumes.length} 个槽位，可扩展至{' '}
+            {MAXIMUM_RESUME_COUNT} 份
+          </span>
+        </div>
+      </div>
+
+      <input
+        ref={resumeFileInputRef}
+        className="visually-hidden"
+        type="file"
+        accept=".pdf,.docx,.txt,.md,.markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+        onChange={(event) =>
+          void handleResumeFile(event.target.files?.[0], pendingResumeIdRef.current)
+        }
+      />
+
+      <div className="resume-list">
+        {draft.resumes.map((resume, index) => (
+          <article className="resume-card" key={resume.id}>
+            <div className="resume-card__heading">
+              <div>
+                <FileText aria-hidden="true" size={16} />
+                <strong>{resume.name.trim() || `简历 ${index + 1}`}</strong>
+                <span>{resume.text.length.toLocaleString('zh-CN')} 字</span>
+              </div>
+              {draft.resumes.length > DEFAULT_RESUME_SLOT_COUNT ? (
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="移除此简历"
+                  aria-label={`移除${resume.name || `简历 ${index + 1}`}`}
+                  onClick={() => removeResume(resume.id)}
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                </button>
+              ) : null}
+            </div>
+
+            <label className="field">
+              <span className="field__label">简历名称</span>
+              <input
+                value={resume.name}
+                onChange={(event) => updateResume(resume.id, { name: event.target.value })}
+                placeholder={`简历 ${index + 1}`}
+              />
+            </label>
+
+            <label className="field field--large">
+              <span className="field__label">
+                简历正文
+                <small>{resume.text.length.toLocaleString('zh-CN')} 字</small>
+              </span>
+              <textarea
+                value={resume.text}
+                onChange={(event) =>
+                  updateResume(resume.id, {
+                    text: event.target.value,
+                    updatedAt: new Date().toISOString(),
+                  })
+                }
+                placeholder="导入 PDF、DOCX 或粘贴完整简历，保留技能、项目、量化成果和工作时间。"
+                rows={8}
+              />
+            </label>
+
+            <div className="inline-actions">
+              <button
+                className="button button--secondary button--compact"
+                type="button"
+                disabled={parsingResumeId !== null}
+                onClick={() => {
+                  pendingResumeIdRef.current = resume.id;
+                  resumeFileInputRef.current?.click();
+                }}
+              >
+                <Upload aria-hidden="true" size={15} />
+                {parsingResumeId === resume.id ? '正在解析' : '导入到这份简历'}
+              </button>
+              <span className="field-note">{resume.fileName || '支持 PDF / DOCX / TXT / MD'}</span>
+            </div>
+          </article>
+        ))}
+      </div>
 
       <div className="inline-actions">
-        <input
-          ref={fileInputRef}
-          className="visually-hidden"
-          type="file"
-          accept=".pdf,.docx,.txt,.md,.markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-          onChange={(event) => void handleResumeFile(event.target.files?.[0])}
-        />
         <button
-          className="button button--secondary button--compact"
+          className="button button--ghost button--compact"
           type="button"
-          disabled={parsing}
-          onClick={() => fileInputRef.current?.click()}
+          disabled={draft.resumes.length >= MAXIMUM_RESUME_COUNT}
+          onClick={addResume}
         >
-          <Upload aria-hidden="true" size={15} />
-          {parsing ? '正在解析' : '导入简历'}
+          <Plus aria-hidden="true" size={15} />
+          添加简历
         </button>
         <span className="field-note">
-          <FileText aria-hidden="true" size={14} />
-          本地解析 PDF / DOCX / TXT / MD
+          只需填写 {MINIMUM_ACTIVE_RESUME_COUNT}{' '}
+          份有效简历即可筛选；多份简历会一起匹配并自动选择最高分。
         </span>
       </div>
       {fileMessage ? <p className="field-success">{fileMessage}</p> : null}
@@ -463,6 +600,11 @@ export function SetupStep({
           try {
             await onSave({
               ...draft,
+              resumes: draft.resumes.slice(0, MAXIMUM_RESUME_COUNT).map((resume, index) => ({
+                ...resume,
+                name: resume.name.trim() || `简历 ${index + 1}`,
+                text: resume.text.trim(),
+              })),
               maxScanPages: Math.max(1, Math.min(30, draft.maxScanPages)),
               maxJobDetails: Math.max(1, Math.min(100, draft.maxJobDetails)),
               weeklyAvailabilityDays: Math.max(0, Math.min(7, draft.weeklyAvailabilityDays)),

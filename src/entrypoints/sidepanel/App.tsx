@@ -31,9 +31,9 @@ import {
   waitForChatTabAfterAction,
 } from '../../shared/browser-tab';
 import { researchCompanyWithAi } from '../../shared/company-research';
-import { createDefaultState } from '../../shared/defaults';
+import { createDefaultState, MINIMUM_ACTIVE_RESUME_COUNT } from '../../shared/defaults';
 import { MESSAGE_SEND_INTERVAL_SECONDS } from '../../shared/execution';
-import { buildCandidateProfile } from '../../shared/matching';
+import { buildCandidateProfiles } from '../../shared/matching';
 import {
   canRecoverJob,
   confirmManualSend,
@@ -402,7 +402,10 @@ export function App() {
         throw new Error('未读取到岗位，请确认位于 Boss 搜索结果页');
       }
 
-      const profile = buildCandidateProfile(state.settings);
+      const profiles = buildCandidateProfiles(state.settings);
+      if (profiles.length < MINIMUM_ACTIVE_RESUME_COUNT) {
+        throw new Error('至少需要填写 1 份有效简历后才能筛选岗位');
+      }
       const scannedAt = new Date().toISOString();
       setScanProgress({
         phase: 'analyzing',
@@ -411,7 +414,7 @@ export function App() {
         total: response.payload.drafts.length,
       });
       const screenedJobs = response.payload.drafts.map((draft) =>
-        screenJob(draft, profile, state.settings, scannedAt),
+        screenJob(draft, profiles, state.settings, scannedAt),
       );
       const checked = await applyExternalChecks(screenedJobs, state.settings);
       const enhancedJobs = checked.jobs;
@@ -509,12 +512,15 @@ export function App() {
     });
 
     try {
-      const profile = buildCandidateProfile(state.settings);
+      const profiles = buildCandidateProfiles(state.settings);
+      if (profiles.length < MINIMUM_ACTIVE_RESUME_COUNT) {
+        throw new Error('至少需要填写 1 份有效简历后才能重新评估岗位');
+      }
       const timestamp = new Date().toISOString();
       const candidateIds = new Set(candidates.map((job) => job.id));
       const reevaluated = state.jobs.map((job) =>
         canReevaluateRejectedJob(job)
-          ? reevaluateStoredJob(job, profile, state.settings, timestamp)
+          ? reevaluateStoredJob(job, profiles, state.settings, timestamp)
           : job,
       );
       const checked = await applyExternalChecks(reevaluated, state.settings);
@@ -1016,7 +1022,7 @@ export function App() {
       </main>
 
       <footer className="app-footer">
-        <span>v0.3.14</span>
+        <span>v0.4.0</span>
         <span>数据仅保存在本机</span>
       </footer>
     </div>

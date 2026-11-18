@@ -17,6 +17,8 @@ const job: BossJobDraft = {
 };
 
 const candidate: CandidateProfile = {
+  resumeId: 'testing-resume',
+  resumeName: '测试开发简历',
   resumeText:
     '重庆交通大学 数据科学与大数据技术 2027届本科生。掌握 Python、功能测试和自动化测试，使用 Codex 辅助代码修改和结果核验。',
   targetTitles: ['自动化测试'],

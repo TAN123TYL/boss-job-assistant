@@ -1,4 +1,4 @@
-export const APP_SCHEMA_VERSION = 6;
+export const APP_SCHEMA_VERSION = 7;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'skipped';
 export type ExecutionStatus =
@@ -13,8 +13,16 @@ export type JobStage =
 export type ReliabilityGrade = 'A' | 'B' | 'C' | 'D';
 export type CompanyTrustDecision = 'trusted' | 'review' | 'risky' | 'unverified';
 
+export interface ResumeDocument {
+  id: string;
+  name: string;
+  text: string;
+  fileName: string;
+  updatedAt: string;
+}
+
 export interface ScreeningSettings {
-  resumeText: string;
+  resumes: ResumeDocument[];
   targetTitles: string;
   targetCities: string;
   excludedKeywords: string;
@@ -39,6 +47,8 @@ export interface ScreeningSettings {
 }
 
 export interface CandidateProfile {
+  resumeId: string;
+  resumeName: string;
   resumeText: string;
   targetTitles: string[];
   targetCities: string[];
@@ -70,6 +80,13 @@ export interface ResumeMatchResult {
   gaps: string[];
   matchedKeywords: string[];
   rejectionReasons: string[];
+}
+
+export interface ResumeMatchSummary {
+  resumeId: string;
+  resumeName: string;
+  score: number;
+  passed: boolean;
 }
 
 export interface CityFilterResult {
@@ -136,6 +153,9 @@ export interface JobRecord {
   stage: JobStage;
   finalScore: number;
   matchResult: ResumeMatchResult;
+  matchedResumeId?: string;
+  matchedResumeName?: string;
+  resumeMatches?: ResumeMatchSummary[];
   cityResult: CityFilterResult;
   companyAssessment: CompanyAssessment;
   aiReview: AiJobReview | null;

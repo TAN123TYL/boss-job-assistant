@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from './defaults';
-import { buildCandidateProfile } from './matching';
+import { buildCandidateProfiles } from './matching';
 import {
   canReevaluateRejectedJob,
   mergeScreenedJobs,
@@ -11,8 +11,15 @@ import type { BossJobDraft, ScreeningSettings } from './types';
 
 const settings: ScreeningSettings = {
   ...DEFAULT_SETTINGS,
-  resumeText:
-    '本科，5年经验。负责数据分析平台建设，熟练使用 SQL、Excel 和 Tableau。主导用户增长项目，使转化率提升30%。',
+  resumes: [
+    {
+      id: 'data-resume',
+      name: '数据分析简历',
+      text: '本科，5年经验。负责数据分析平台建设，熟练使用 SQL、Excel 和 Tableau。主导用户增长项目，使转化率提升30%。',
+      fileName: '数据分析简历.docx',
+      updatedAt: '2026-11-18T00:00:00.000Z',
+    },
+  ],
   targetTitles: '数据分析, 商业分析',
   targetCities: '上海',
   excludedKeywords: '保险, 外包',
@@ -39,9 +46,41 @@ function createJob(overrides: Partial<BossJobDraft> = {}): BossJobDraft {
 }
 
 describe('screening pipeline', () => {
+  it('screens a job against every resume and keeps the highest-scoring one', () => {
+    const multiResumeSettings: ScreeningSettings = {
+      ...settings,
+      targetTitles: '数据分析, 自动化测试',
+      resumes: [
+        ...settings.resumes,
+        {
+          id: 'testing-resume',
+          name: '测试开发简历',
+          text: '本科，掌握 Python、SQL、Linux、功能测试、自动化测试、接口测试、回归测试和禅道缺陷管理。',
+          fileName: '测试开发简历.docx',
+          updatedAt: '2026-11-18T00:00:00.000Z',
+        },
+      ],
+    };
+    const profiles = buildCandidateProfiles(multiResumeSettings);
+    const result = screenJob(
+      createJob({
+        title: '自动化测试工程师',
+        description:
+          '负责 Web 自动化测试、接口测试和回归验证，要求熟悉 Python、SQL、Linux 和禅道。',
+        tags: ['Python', 'SQL', 'Linux', '自动化测试', '禅道'],
+      }),
+      profiles,
+      multiResumeSettings,
+    );
+
+    expect(result.matchedResumeId).toBe('testing-resume');
+    expect(result.matchedResumeName).toBe('测试开发简历');
+    expect(result.resumeMatches).toHaveLength(2);
+  });
+
   it('runs resume, city, and company checks in order', () => {
-    const profile = buildCandidateProfile(settings);
-    const result = screenJob(createJob(), profile, settings);
+    const profiles = buildCandidateProfiles(settings);
+    const result = screenJob(createJob(), profiles, settings);
 
     expect(result.matchResult.passed).toBe(true);
     expect(result.cityResult.passed).toBe(true);
@@ -51,8 +90,8 @@ describe('screening pipeline', () => {
   });
 
   it('stops at the city stage after resume matching', () => {
-    const profile = buildCandidateProfile(settings);
-    const result = screenJob(createJob({ location: '北京·朝阳区' }), profile, settings);
+    const profiles = buildCandidateProfiles(settings);
+    const result = screenJob(createJob({ location: '北京·朝阳区' }), profiles, settings);
 
     expect(result.matchResult.passed).toBe(true);
     expect(result.cityResult.passed).toBe(false);
@@ -60,13 +99,13 @@ describe('screening pipeline', () => {
   });
 
   it('stops at the company stage when risk signals are excessive', () => {
-    const profile = buildCandidateProfile(settings);
+    const profiles = buildCandidateProfiles(settings);
     const result = screenJob(
       createJob({
         company: '捷径人力资源有限公司',
         description: '负责数据分析。不要求经验，入职前需缴纳培训费和押金，薪资30-50K，加微信沟通。',
       }),
-      profile,
+      profiles,
       settings,
     );
 
@@ -76,7 +115,7 @@ describe('screening pipeline', () => {
   });
 
   it('keeps a matching sparse list card for review instead of rejecting missing metadata', () => {
-    const profile = buildCandidateProfile(settings);
+    const profiles = buildCandidateProfiles(settings);
     const result = screenJob(
       createJob({
         company: '重庆真实数据科技有限公司',
@@ -85,7 +124,7 @@ describe('screening pipeline', () => {
         financing: '',
         tags: ['SQL', 'Excel', '本科'],
       }),
-      profile,
+      profiles,
       settings,
     );
 
@@ -95,15 +134,15 @@ describe('screening pipeline', () => {
   });
 
   it('preserves an approved greeting during a rescan', () => {
-    const profile = buildCandidateProfile(settings);
-    const first = screenJob(createJob(), profile, settings, '2026-11-14T00:00:00.000Z');
+    const profiles = buildCandidateProfiles(settings);
+    const first = screenJob(createJob(), profiles, settings, '2026-11-14T00:00:00.000Z');
     const approved = {
       ...first,
       approvalStatus: 'approved' as const,
       selectedGreeting: '编辑后的沟通内容',
       approvedAt: '2026-11-14T01:00:00.000Z',
     };
-    const rescanned = screenJob(createJob(), profile, settings, '2026-11-14T02:00:00.000Z');
+    const rescanned = screenJob(createJob(), profiles, settings, '2026-11-14T02:00:00.000Z');
     const merged = mergeScreenedJobs([approved], [rescanned]);
 
     expect(merged[0]?.approvalStatus).toBe('approved');
@@ -111,10 +150,10 @@ describe('screening pipeline', () => {
   });
 
   it('re-evaluates a previously rejected job with current rules', () => {
-    const profile = buildCandidateProfile(settings);
+    const profiles = buildCandidateProfiles(settings);
     const rejected = screenJob(
       createJob(),
-      profile,
+      profiles,
       {
         ...settings,
         targetTitles: 'Java 后端',
@@ -122,7 +161,7 @@ describe('screening pipeline', () => {
       },
       '2026-11-14T00:00:00.000Z',
     );
-    const restored = reevaluateStoredJob(rejected, profile, settings, '2026-11-15T00:00:00.000Z');
+    const restored = reevaluateStoredJob(rejected, profiles, settings, '2026-11-15T00:00:00.000Z');
 
     expect(rejected.stage).toBe('resume_rejected');
     expect(canReevaluateRejectedJob(rejected)).toBe(true);
@@ -131,8 +170,8 @@ describe('screening pipeline', () => {
   });
 
   it('does not re-evaluate jobs already approved, skipped, or sent', () => {
-    const profile = buildCandidateProfile(settings);
-    const rejected = screenJob(createJob({ location: '北京' }), profile, settings);
+    const profiles = buildCandidateProfiles(settings);
+    const rejected = screenJob(createJob({ location: '北京' }), profiles, settings);
 
     expect(canReevaluateRejectedJob({ ...rejected, approvalStatus: 'approved' })).toBe(false);
     expect(canReevaluateRejectedJob({ ...rejected, approvalStatus: 'skipped' })).toBe(false);

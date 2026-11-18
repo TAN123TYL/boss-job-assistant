@@ -2,7 +2,7 @@
 
 ## Stored locally
 
-- Resume text
+- One or more resume texts and their local display names
 - Screening settings
 - Job metadata visible on the page
 - Generated and edited greetings
@@ -14,8 +14,8 @@ analytics service or remote application database.
 
 ## Optional external requests
 
-- With AI review enabled, resume excerpts and job text go to the configured
-  OpenAI-compatible model endpoint.
+- With AI review enabled, the best-matching resume text and job text go to the
+  configured OpenAI-compatible model endpoint.
 - With company research enabled, the company name goes to Tavily Search.
 - Public search snippets and recruitment-page company information go to the
   configured AI endpoint for risk summarization.

@@ -169,7 +169,8 @@ export function ScreenStep({
                 <div className="compact-job__body">
                   <strong>{job.title}</strong>
                   <span>
-                    {job.company} · {job.location} · {job.salary}
+                    {job.company} · {job.location} · {job.salary} · 简历{' '}
+                    {job.matchedResumeName || '主简历'}
                   </span>
                 </div>
                 <span className={`grade grade--${job.companyAssessment.grade.toLowerCase()}`}>

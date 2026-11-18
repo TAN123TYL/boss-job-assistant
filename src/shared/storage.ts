@@ -1,11 +1,24 @@
 import { browser } from 'wxt/browser';
-import { createDefaultState, DEFAULT_SETTINGS } from './defaults';
+import {
+  createDefaultState,
+  createEmptyResume,
+  DEFAULT_SETTINGS,
+  DEFAULT_RESUME_SLOT_COUNT,
+  MAXIMUM_RESUME_COUNT,
+} from './defaults';
 import { APP_SCHEMA_VERSION } from './types';
-import type { AppState, CompanyAssessment, JobRecord, ScreeningSettings } from './types';
+import type {
+  AppState,
+  CompanyAssessment,
+  JobRecord,
+  ResumeDocument,
+  ScreeningSettings,
+} from './types';
 
-const STORAGE_KEY = 'boss-job-assistant:state:v6';
+const STORAGE_KEY = 'boss-job-assistant:state:v7';
 const STORAGE_READ_TIMEOUT_MS = 3_000;
 const LEGACY_STORAGE_KEYS = [
+  'boss-job-assistant:state:v6',
   'boss-job-assistant:state:v5',
   'boss-job-assistant:state:v4',
   'boss-job-assistant:state:v3',
@@ -67,8 +80,58 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
+function migrateResume(value: unknown, index: number): ResumeDocument {
+  const resume = objectValue(value);
+  const fileName = typeof resume.fileName === 'string' ? resume.fileName : '';
+  const fallbackName = fileName.replace(/\.[^.]+$/u, '').trim() || `简历 ${index + 1}`;
+  return createEmptyResume(index, {
+    id: typeof resume.id === 'string' && resume.id.trim() ? resume.id : `resume-${index + 1}`,
+    name: typeof resume.name === 'string' && resume.name.trim() ? resume.name.trim() : fallbackName,
+    text: typeof resume.text === 'string' ? resume.text : '',
+    fileName,
+    updatedAt: typeof resume.updatedAt === 'string' ? resume.updatedAt : '',
+  });
+}
+
+function migrateResumes(value: unknown, legacyResumeText: unknown): ResumeDocument[] {
+  const resumes = Array.isArray(value)
+    ? value.slice(0, MAXIMUM_RESUME_COUNT).map(migrateResume)
+    : [];
+  const uniqueResumes: ResumeDocument[] = [];
+  const ids = new Set<string>();
+
+  for (const resume of resumes) {
+    if (ids.has(resume.id)) {
+      resume.id = `resume-${uniqueResumes.length + 1}`;
+    }
+    ids.add(resume.id);
+    uniqueResumes.push(resume);
+  }
+
+  if (
+    uniqueResumes.length === 0 &&
+    typeof legacyResumeText === 'string' &&
+    legacyResumeText.trim()
+  ) {
+    uniqueResumes.push(
+      createEmptyResume(0, {
+        name: '主简历',
+        text: legacyResumeText,
+      }),
+    );
+  }
+
+  while (uniqueResumes.length < DEFAULT_RESUME_SLOT_COUNT) {
+    uniqueResumes.push(createEmptyResume(uniqueResumes.length));
+  }
+
+  return uniqueResumes;
+}
+
 function migrateSettings(value: unknown): ScreeningSettings {
   const legacySettings = { ...objectValue(value) };
+  legacySettings.resumes = migrateResumes(legacySettings.resumes, legacySettings.resumeText);
+  delete legacySettings.resumeText;
   delete legacySettings.maxDailyMessages;
   delete legacySettings.sendIntervalSeconds;
   return {
@@ -123,8 +186,27 @@ function migrateCompanyAssessment(value: unknown): CompanyAssessment {
 
 function migrateJob(value: unknown): JobRecord {
   const job = objectValue(value);
+  const matchedResumeId = typeof job.matchedResumeId === 'string' ? job.matchedResumeId : undefined;
+  const matchedResumeName =
+    typeof job.matchedResumeName === 'string' ? job.matchedResumeName : undefined;
+  const resumeMatches = Array.isArray(job.resumeMatches)
+    ? job.resumeMatches
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => {
+          const summary = objectValue(item);
+          return {
+            resumeId: typeof summary.resumeId === 'string' ? summary.resumeId : '',
+            resumeName: typeof summary.resumeName === 'string' ? summary.resumeName : '',
+            score: Number.isFinite(Number(summary.score)) ? Number(summary.score) : 0,
+            passed: summary.passed === true,
+          };
+        })
+    : [];
   return {
     ...job,
+    ...(matchedResumeId ? { matchedResumeId } : {}),
+    ...(matchedResumeName ? { matchedResumeName } : {}),
+    resumeMatches,
     companyPageText: typeof job.companyPageText === 'string' ? job.companyPageText : '',
     companyAssessment: migrateCompanyAssessment(job.companyAssessment),
     aiReview: job.aiReview && typeof job.aiReview === 'object' ? job.aiReview : null,
@@ -206,6 +288,7 @@ export function compactAppStateForStorage(state: AppState, level: 1 | 2 | 3): Ap
   const selectedJobs = selectJobsForStorage(state.jobs, limits.maximumJobs);
   const jobs = selectedJobs.map((job) => ({
     ...job,
+    resumeMatches: job.resumeMatches?.slice(0, MAXIMUM_RESUME_COUNT) ?? [],
     tags: job.tags.slice(0, 20),
     description: limitText(job.description, limits.descriptionLength),
     companyPageText: limitText(job.companyPageText, limits.companyTextLength),

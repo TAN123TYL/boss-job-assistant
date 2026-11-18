@@ -1,7 +1,7 @@
 import { matchCity } from './city';
 import { assessCompany } from './company';
 import { generateGreetings } from './greeting';
-import { scoreResumeMatch } from './matching';
+import { selectBestResumeMatch } from './matching';
 import { calculateRankingScore } from './scoring';
 import type { BossJobDraft, CandidateProfile, JobRecord, ScreeningSettings } from './types';
 import { hashString, unique } from './utils';
@@ -23,13 +23,14 @@ export function createJobFingerprint(draft: BossJobDraft): string {
 
 export function screenJob(
   draft: BossJobDraft,
-  profile: CandidateProfile,
+  profiles: CandidateProfile[],
   settings: ScreeningSettings,
   timestamp = new Date().toISOString(),
 ): JobRecord {
   const fingerprint = createJobFingerprint(draft);
   const id = hashString(draft.url || fingerprint);
-  const matchResult = scoreResumeMatch(draft, profile, settings);
+  const bestResume = selectBestResumeMatch(draft, profiles, settings);
+  const { profile, matchResult } = bestResume;
 
   if (!matchResult.passed) {
     return createRejectedRecord({
@@ -39,6 +40,9 @@ export function screenJob(
       timestamp,
       stage: 'resume_rejected',
       matchResult,
+      matchedResumeId: profile.resumeId,
+      matchedResumeName: profile.resumeName,
+      resumeMatches: bestResume.summaries,
       rejectionReasons: matchResult.rejectionReasons,
     });
   }
@@ -53,6 +57,9 @@ export function screenJob(
       timestamp,
       stage: 'city_rejected',
       matchResult,
+      matchedResumeId: profile.resumeId,
+      matchedResumeName: profile.resumeName,
+      resumeMatches: bestResume.summaries,
       cityResult,
       rejectionReasons: [cityResult.reason],
     });
@@ -68,6 +75,9 @@ export function screenJob(
       timestamp,
       stage: 'company_rejected',
       matchResult,
+      matchedResumeId: profile.resumeId,
+      matchedResumeName: profile.resumeName,
+      resumeMatches: bestResume.summaries,
       cityResult,
       companyAssessment,
       rejectionReasons: [
@@ -103,6 +113,9 @@ export function screenJob(
     stage: 'ready_for_review',
     finalScore,
     matchResult,
+    ...(profile.resumeId ? { matchedResumeId: profile.resumeId } : {}),
+    ...(profile.resumeName ? { matchedResumeName: profile.resumeName } : {}),
+    resumeMatches: bestResume.summaries,
     cityResult,
     companyAssessment,
     aiReview: null,
@@ -127,6 +140,9 @@ interface RejectedRecordInput {
   timestamp: string;
   stage: JobRecord['stage'];
   matchResult: JobRecord['matchResult'];
+  matchedResumeId: string;
+  matchedResumeName: string;
+  resumeMatches: NonNullable<JobRecord['resumeMatches']>;
   cityResult?: JobRecord['cityResult'];
   companyAssessment?: JobRecord['companyAssessment'];
   rejectionReasons: string[];
@@ -150,6 +166,9 @@ function createRejectedRecord(input: RejectedRecordInput): JobRecord {
     stage: input.stage,
     finalScore: 0,
     matchResult: input.matchResult,
+    ...(input.matchedResumeId ? { matchedResumeId: input.matchedResumeId } : {}),
+    ...(input.matchedResumeName ? { matchedResumeName: input.matchedResumeName } : {}),
+    resumeMatches: input.resumeMatches,
     cityResult: input.cityResult ?? {
       passed: false,
       score: 0,
@@ -270,11 +289,11 @@ export function jobRecordToDraft(job: JobRecord): BossJobDraft {
 
 export function reevaluateStoredJob(
   job: JobRecord,
-  profile: CandidateProfile,
+  profiles: CandidateProfile[],
   settings: ScreeningSettings,
   timestamp = new Date().toISOString(),
 ): JobRecord {
-  const reevaluated = screenJob(jobRecordToDraft(job), profile, settings, timestamp);
+  const reevaluated = screenJob(jobRecordToDraft(job), profiles, settings, timestamp);
   return {
     ...reevaluated,
     discoveredAt: job.discoveredAt,

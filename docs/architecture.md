@@ -4,7 +4,7 @@
 
 The extension keeps the expensive decision points deterministic and local:
 
-1. Match the resume to a job.
+1. Match every valid resume to a job and keep the highest-scoring one.
 2. Keep only jobs in configured cities.
 3. Assess recruitment-page company signals.
 4. Optionally verify public company information through search and an AI provider.
@@ -17,10 +17,11 @@ The extension keeps the expensive decision points deterministic and local:
 
 ### Domain
 
-`src/shared` contains pure TypeScript functions for matching, city filtering,
-company signals, AI response validation, company evidence mapping, greeting
-generation, approval, queue transitions, backups, and execution limits. These
-modules avoid browser APIs where possible and are covered by Vitest.
+`src/shared` contains pure TypeScript functions for multi-resume matching, city
+filtering, company signals, AI response validation, company evidence mapping,
+greeting generation, approval, queue transitions, backups, and execution
+limits. These modules avoid browser APIs where possible and are covered by
+Vitest.
 
 ### Browser adapter
 

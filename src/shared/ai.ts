@@ -1,4 +1,10 @@
-import type { AiJobReview, GreetingOption, JobRecord, ScreeningSettings } from './types';
+import type {
+  AiJobReview,
+  GreetingOption,
+  JobRecord,
+  ResumeDocument,
+  ScreeningSettings,
+} from './types';
 import { calculateRankingScore } from './scoring';
 import { clamp, normalizeWhitespace, truncate, unique } from './utils';
 
@@ -142,6 +148,7 @@ export function parseAiReview(value: unknown, reviewedAt = new Date().toISOStrin
 async function generateAiGreetings(
   job: JobRecord,
   settings: ScreeningSettings,
+  resume: ResumeDocument,
   jobContext: string,
   fetchImpl: FetchLike,
 ): Promise<GreetingOption[]> {
@@ -168,8 +175,9 @@ async function generateAiGreetings(
           `可实习时长：${settings.internshipDuration || '未填写'}`,
           `希望拓展方向：${settings.growthDirection || '未填写'}`,
           `允许提到 AI 工具经验：${settings.mentionAiToolsInGreeting ? '是，但仅限简历真实出现' : '否'}`,
-          '简历：',
-          truncate(settings.resumeText, 10_000),
+          `最佳匹配简历：${resume.name}`,
+          '简历全文：',
+          truncate(resume.text, 10_000),
           '岗位 JD：',
           jobContext,
           `公司：${job.company}`,
@@ -192,6 +200,14 @@ export async function enhanceJobWithAi(
 ): Promise<JobRecord> {
   if (!settings.aiEnabled || !settings.aiApiKey.trim()) {
     return job;
+  }
+
+  const resume = [
+    ...settings.resumes.filter((candidate) => candidate.id === job.matchedResumeId),
+    ...settings.resumes.filter((candidate) => candidate.id !== job.matchedResumeId),
+  ].find((candidate) => normalizeWhitespace(candidate.text).length >= 30);
+  if (!resume) {
+    throw new Error('没有可用于 AI 复核的简历');
   }
 
   const reviewedAt = new Date().toISOString();
@@ -229,8 +245,9 @@ export async function enhanceJobWithAi(
           `可实习时长：${settings.internshipDuration || '未填写'}`,
           `希望拓展方向：${settings.growthDirection || '未填写'}`,
           `允许提到 AI 工具经验：${settings.mentionAiToolsInGreeting ? '是，但仅限简历真实出现' : '否'}`,
-          '简历：',
-          truncate(settings.resumeText, 10_000),
+          `最佳匹配简历：${resume.name}`,
+          '简历全文：',
+          truncate(resume.text, 10_000),
           '岗位信息与 JD：',
           jobContext,
           `本地规则分：${job.matchResult.score}`,
@@ -244,7 +261,7 @@ export async function enhanceJobWithAi(
   let aiGreetingOptions = review.greetingOptions;
   if (aiGreetingOptions.length === 0 && settings.aiEnabled) {
     try {
-      aiGreetingOptions = await generateAiGreetings(job, settings, jobContext, fetchImpl);
+      aiGreetingOptions = await generateAiGreetings(job, settings, resume, jobContext, fetchImpl);
     } catch {
       // Keep the deterministic local greetings as a fallback.
     }

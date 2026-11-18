@@ -7,6 +7,24 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+### Added
+
+- Added a multi-resume library with three default slots, up to ten resumes, and
+  independent names, file metadata, and resume text.
+- Every job is now scored against all valid resumes. The highest-scoring resume
+  is stored with the job while every resume score remains visible in review.
+- AI review and greeting generation now use the selected best-matching resume
+  together with the complete job description.
+
+### Changed
+
+- One valid resume is enough to start screening; users no longer need to fill
+  all three default slots.
+- Upgraded local state to schema v7. The previous single resume is migrated into
+  a resume named “主简历” without manual action.
+
 ## [0.3.14] - 2026-11-16
 
 ### Fixed

@@ -1,4 +1,11 @@
-import type { BossJobDraft, CandidateProfile, ResumeMatchResult, ScreeningSettings } from './types';
+import type {
+  BossJobDraft,
+  CandidateProfile,
+  ResumeDocument,
+  ResumeMatchResult,
+  ResumeMatchSummary,
+  ScreeningSettings,
+} from './types';
 import { clamp, normalizeWhitespace, splitList, unique } from './utils';
 
 const SKILL_DICTIONARY = [
@@ -159,18 +166,47 @@ export function extractSkills(value: string): string[] {
   return SKILL_DICTIONARY.filter((skill) => normalized.includes(skill.toLocaleLowerCase('zh-CN')));
 }
 
-export function buildCandidateProfile(settings: ScreeningSettings): CandidateProfile {
-  const resumeText = normalizeWhitespace(settings.resumeText);
+function buildProfileFromResume(
+  settings: ScreeningSettings,
+  resume: ResumeDocument,
+): CandidateProfile {
+  const resumeText = normalizeWhitespace(resume.text);
 
   return {
+    resumeId: resume.id,
+    resumeName: resume.name,
     resumeText,
     targetTitles: splitList(settings.targetTitles),
     targetCities: splitList(settings.targetCities),
     skills: extractSkills(resumeText),
     educationLevel: detectEducationRank(resumeText),
     yearsOfExperience: detectExplicitYears(resumeText),
-    highlights: extractHighlights(settings.resumeText),
+    highlights: extractHighlights(resume.text),
   };
+}
+
+export function buildCandidateProfiles(settings: ScreeningSettings): CandidateProfile[] {
+  return settings.resumes
+    .filter((resume) => normalizeWhitespace(resume.text).length >= 30)
+    .map((resume) => buildProfileFromResume(settings, resume));
+}
+
+export function buildCandidateProfile(settings: ScreeningSettings): CandidateProfile {
+  const resume = settings.resumes[0];
+  if (!resume) {
+    return {
+      resumeId: '',
+      resumeName: '',
+      resumeText: '',
+      targetTitles: splitList(settings.targetTitles),
+      targetCities: splitList(settings.targetCities),
+      skills: [],
+      educationLevel: 0,
+      yearsOfExperience: 0,
+      highlights: [],
+    };
+  }
+  return buildProfileFromResume(settings, resume);
 }
 
 function titleSimilarity(targetTitles: string[], jobTitle: string): number {
@@ -334,5 +370,45 @@ export function scoreResumeMatch(
     gaps,
     matchedKeywords: unique([...skills.matched, ...(titleScore >= 0.75 ? [job.title] : [])]),
     rejectionReasons: passed ? [] : [`简历匹配分 ${score} 低于阈值 ${settings.minimumResumeScore}`],
+  };
+}
+
+export interface BestResumeMatch {
+  profile: CandidateProfile;
+  matchResult: ResumeMatchResult;
+  summaries: ResumeMatchSummary[];
+}
+
+export function selectBestResumeMatch(
+  job: BossJobDraft,
+  profiles: CandidateProfile[],
+  settings: ScreeningSettings,
+): BestResumeMatch {
+  const evaluated = profiles.map((profile) => ({
+    profile,
+    matchResult: scoreResumeMatch(job, profile, settings),
+  }));
+  const best =
+    evaluated.sort((left, right) => right.matchResult.score - left.matchResult.score)[0] ??
+    ({
+      profile: buildCandidateProfile(settings),
+      matchResult: {
+        score: 0,
+        passed: false,
+        evidence: [],
+        gaps: ['尚未填写可用的简历'],
+        matchedKeywords: [],
+        rejectionReasons: ['没有可用简历'],
+      },
+    } satisfies { profile: CandidateProfile; matchResult: ResumeMatchResult });
+
+  return {
+    ...best,
+    summaries: evaluated.map(({ profile, matchResult }) => ({
+      resumeId: profile.resumeId,
+      resumeName: profile.resumeName,
+      score: matchResult.score,
+      passed: matchResult.passed,
+    })),
   };
 }

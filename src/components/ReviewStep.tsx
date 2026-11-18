@@ -69,6 +69,7 @@ function JobReviewItem({ job, onApprove, onSkip }: JobReviewItemProps) {
       </div>
 
       <div className="evidence-line">
+        {job.matchedResumeName ? <span>最佳简历 · {job.matchedResumeName}</span> : null}
         {job.matchResult.matchedKeywords.slice(0, 4).map((keyword) => (
           <span key={keyword}>{keyword}</span>
         ))}
@@ -98,6 +99,19 @@ function JobReviewItem({ job, onApprove, onSkip }: JobReviewItemProps) {
               ))}
             </ul>
           </div>
+          {job.resumeMatches && job.resumeMatches.length > 1 ? (
+            <div className="detail-group">
+              <h3>多简历匹配</h3>
+              <ul>
+                {job.resumeMatches.map((match) => (
+                  <li key={match.resumeId}>
+                    {match.resumeName || '未命名简历'}：{match.score} 分
+                    {match.passed ? '，达到阈值' : '，未达阈值'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {job.matchResult.gaps.length > 0 ? (
             <div className="detail-group detail-group--risk">
               <h3>待确认项</h3>

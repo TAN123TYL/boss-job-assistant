@@ -40,7 +40,7 @@ describe('app state loading', () => {
 
     const state = await loadAppState();
 
-    expect(state.schemaVersion).toBe(6);
+    expect(state.schemaVersion).toBe(7);
     expect(storageMocks.set).toHaveBeenCalledOnce();
     expect(storageMocks.remove).toHaveBeenCalled();
   });
@@ -65,7 +65,7 @@ describe('app state loading', () => {
     expect(storageMocks.remove).toHaveBeenCalled();
     expect(storageMocks.set).toHaveBeenCalledTimes(2);
     const persisted = storageMocks.set.mock.calls[1]?.[0] as Record<string, typeof state>;
-    expect(persisted['boss-job-assistant:state:v6']?.executionLogs).toHaveLength(300);
+    expect(persisted['boss-job-assistant:state:v7']?.executionLogs).toHaveLength(300);
   });
 
   it('rejects instead of hanging forever when storage never resolves', async () => {

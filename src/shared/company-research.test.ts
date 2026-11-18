@@ -7,8 +7,15 @@ import type { ScreeningSettings } from './types';
 
 const settings: ScreeningSettings = {
   ...DEFAULT_SETTINGS,
-  resumeText:
-    '本科，5年经验。负责数据分析平台建设，熟练使用 SQL、Excel 和 Tableau。主导用户增长项目使转化率提升30%。',
+  resumes: [
+    {
+      id: 'data-resume',
+      name: '数据分析简历',
+      text: '本科，5年经验。负责数据分析平台建设，熟练使用 SQL、Excel 和 Tableau。主导用户增长项目使转化率提升30%。',
+      fileName: '数据分析简历.docx',
+      updatedAt: '2026-11-18T00:00:00.000Z',
+    },
+  ],
   targetTitles: '数据分析',
   targetCities: '上海',
   minimumResumeScore: 60,
@@ -37,7 +44,7 @@ function createJob() {
       companyPageText: '上海示例科技有限公司，企业服务行业，100-499人。',
       source: 'detail',
     },
-    buildCandidateProfile(settings),
+    [buildCandidateProfile(settings)],
     settings,
     '2026-11-14T00:00:00.000Z',
   );

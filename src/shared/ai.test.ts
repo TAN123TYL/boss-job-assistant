@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { enhanceJobWithAi, parseAiReview, testAiConnection } from './ai';
 import { DEFAULT_SETTINGS } from './defaults';
-import { buildCandidateProfile } from './matching';
+import { buildCandidateProfiles } from './matching';
 import { screenJob } from './screening';
 
 describe('AI review parsing', () => {
@@ -58,8 +58,22 @@ describe('AI review parsing', () => {
   it('makes a dedicated JD-based greeting request when the review omits greetings', async () => {
     const settings = {
       ...DEFAULT_SETTINGS,
-      resumeText:
-        '本科，掌握 Python、SQL、功能测试和自动化测试，使用禅道提交并回归验证 60+ 个缺陷。',
+      resumes: [
+        {
+          id: 'data-resume',
+          name: '数据分析简历',
+          text: '本科，掌握 Excel、SQL 和 Tableau，负责业务数据报表与用户增长分析。',
+          fileName: '数据分析简历.docx',
+          updatedAt: '2026-11-18T00:00:00.000Z',
+        },
+        {
+          id: 'testing-resume',
+          name: '测试开发简历',
+          text: '本科，掌握 Python、SQL、功能测试和自动化测试，使用禅道提交并回归验证 60+ 个缺陷。',
+          fileName: '测试开发简历.docx',
+          updatedAt: '2026-11-18T00:00:00.000Z',
+        },
+      ],
       targetTitles: '自动化测试 / 测试开发',
       targetCities: '重庆',
       aiEnabled: true,
@@ -82,7 +96,7 @@ describe('AI review parsing', () => {
         recruiter: '测试经理',
         source: 'detail',
       },
-      buildCandidateProfile(settings),
+      buildCandidateProfiles(settings),
       settings,
     );
     const fakeFetch = vi
@@ -137,5 +151,7 @@ describe('AI review parsing', () => {
     expect(result.greetingOptions[0]?.text).toContain('看到咱们');
     expect(result.aiReview?.greetingOptions).toHaveLength(3);
     expect(result.selectedGreeting).toContain('自动化测试');
+    const secondRequest = fakeFetch.mock.calls[1]?.[1];
+    expect(String(secondRequest?.body)).toContain('测试开发简历');
   });
 });

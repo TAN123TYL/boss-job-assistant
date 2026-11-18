@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { buildCandidateProfile, scoreResumeMatch } from './matching';
+import { buildCandidateProfile, buildCandidateProfiles, scoreResumeMatch } from './matching';
 import { DEFAULT_SETTINGS } from './defaults';
 import type { BossJobDraft, ScreeningSettings } from './types';
 
 const settings: ScreeningSettings = {
   ...DEFAULT_SETTINGS,
-  resumeText: [
-    '本科，5年经验。',
-    '负责数据分析平台建设，熟练使用 SQL、Excel 和 Tableau。',
-    '主导用户增长项目，使转化率提升30%。',
-  ].join('\n'),
+  resumes: [
+    {
+      id: 'data-resume',
+      name: '数据分析简历',
+      text: [
+        '本科，5年经验。',
+        '负责数据分析平台建设，熟练使用 SQL、Excel 和 Tableau。',
+        '主导用户增长项目，使转化率提升30%。',
+      ].join('\n'),
+      fileName: '数据分析简历.docx',
+      updatedAt: '2026-11-18T00:00:00.000Z',
+    },
+  ],
   targetTitles: '数据分析, 商业分析',
   targetCities: '上海',
   excludedKeywords: '保险, 外包',
@@ -37,6 +45,8 @@ describe('resume matching', () => {
   it('extracts skills, education, experience, and highlights', () => {
     const profile = buildCandidateProfile(settings);
 
+    expect(profile.resumeId).toBe('data-resume');
+    expect(profile.resumeName).toBe('数据分析简历');
     expect(profile.skills).toEqual(expect.arrayContaining(['sql', 'excel', 'tableau']));
     expect(profile.educationLevel).toBe(2);
     expect(profile.yearsOfExperience).toBe(5);
@@ -84,8 +94,15 @@ describe('resume matching', () => {
   it('recognizes software testing skills from a testing resume', () => {
     const testingProfile = buildCandidateProfile({
       ...settings,
-      resumeText:
-        '本科，2027届。掌握Python、SQL、Linux，具备功能测试、自动化测试、接口测试、回归测试和禅道缺陷管理经验。',
+      resumes: [
+        {
+          id: 'testing-resume',
+          name: '测试开发简历',
+          text: '本科，2027届。掌握Python、SQL、Linux，具备功能测试、自动化测试、接口测试、回归测试和禅道缺陷管理经验。',
+          fileName: '测试开发简历.docx',
+          updatedAt: '2026-11-18T00:00:00.000Z',
+        },
+      ],
       targetTitles: '自动化测试 / 测试开发 / 功能测试',
     });
 
@@ -102,5 +119,24 @@ describe('resume matching', () => {
         '禅道',
       ]),
     );
+  });
+
+  it('builds all valid resume profiles for combined screening', () => {
+    const profiles = buildCandidateProfiles({
+      ...settings,
+      resumes: [
+        ...settings.resumes,
+        {
+          id: 'short-resume',
+          name: '过短简历',
+          text: '太短',
+          fileName: '',
+          updatedAt: '',
+        },
+      ],
+    });
+
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]?.resumeId).toBe('data-resume');
   });
 });
